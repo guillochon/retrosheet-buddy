@@ -1,0 +1,7 @@
+id,TEST002
+version,1
+info,visteam,"AWAY"
+info,hometeam,"HOME"
+info,date,"2024-01-01"
+play,1,0,TEST1,03,SSS,K
+play,1,0,TEST2,00,,

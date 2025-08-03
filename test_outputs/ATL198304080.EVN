@@ -1,0 +1,47 @@
+id,ATL198304080
+version,1
+info,visteam,"PHI"
+info,hometeam,"ATL"
+info,date,"1983/04/08"
+info,umphome,"johns001"
+info,ump1b,"marsh001"
+info,ump2b,"evans001"
+info,ump3b,"mckay001"
+start,rosep001,"Pete Rose",0,1,3
+start,trill001,"Manny Trillo",0,2,4
+start,schmi001,"Mike Schmidt",0,3,5
+start,matth001,"Gary Matthews",0,4,7
+start,dejea001,"Ivan DeJesus",0,5,6
+start,boone001,"Bob Boone",0,6,2
+start,lefeb001,"Jim Lefebvre",0,7,9
+start,denny001,"Larry Bowa",0,8,8
+start,carlt001,"Steve Carlton",0,9,1
+start,ramir001,"Rafael Ramirez",1,1,6
+start,glenn001,"Glenn Hubbard",1,2,4
+start,chamb001,"Bob Horner",1,3,5
+start,murpd001,"Dale Murphy",1,4,8
+start,roesl001,"Claudell Washington",1,5,9
+start,garci001,"Jerry Royster",1,6,7
+start,benne001,"Bruce Benedict",1,7,2
+start,rober001,"Brett Butler",1,8,3
+start,walke001,"Pascual Perez",1,9,1
+play,1,0,rosep001,11,PTHONMRETROSHEETBUMPETTEVNOUTPUT,S7
+play,1,0,trill001,03,INSIRTESTOUTPUTS,K
+play,1,0,schmi001,00,M,K
+play,1,0,matth001,00,,S8.1-3;2-2
+play,1,0,dejea001,00,,K
+play,1,1,ramir001,00,,S8
+play,1,1,glenn001,00,,S8.1-2
+play,1,1,chamb001,00,,HR.2-H;1-H
+play,1,1,murpd001,00,,K
+play,1,1,roesl001,00,,S8
+play,1,1,garci001,00,,K
+play,2,0,boone001,00,,S8
+play,2,0,lefeb001,00,,K
+play,2,0,denny001,00,,S8.1-2
+play,2,0,carlt001,00,,K
+play,2,1,benne001,00,,S8
+play,2,1,rober001,00,,S8.1-2
+play,2,1,walke001,00,,K
+play,2,1,ramir001,00,,S8.1-3;2-2
+play,2,1,glenn001,00,,K
