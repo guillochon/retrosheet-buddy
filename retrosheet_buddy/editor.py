@@ -333,7 +333,15 @@ class RetrosheetEditor:
             'c': ('Courtesy', ['COUB', 'COUF', 'COUR']),
             't': ('Throws/Relays', ['TH', 'TH%', 'R$']),
             'e': ('Errors', ['E$']),
+            'h': ('Hit Location', []),
         }
+
+        # Hit Location builder state (used within modifier selection UI)
+        self.hit_location_active = False
+        self.hit_location_positions = ""  # one or two digits 1-9
+        self.hit_location_suffix = ""     # '' or 'M' or 'L'
+        self.hit_location_depth = ""      # '' | 'S' | 'D' | 'XD'
+        self.hit_location_foul = False     # True to append 'F' at the end
         
         # Undo functionality
         self.undo_history = []  # List of (game_index, play_index, pitches, play_description) tuples
@@ -593,16 +601,20 @@ class RetrosheetEditor:
                 else:
                     group_name, codes = self.modifier_groups[self.selected_modifier_group]
                     controls_text.append(f"{group_name}:\n", style="bold green")
-                    # Render options in wrapped rows with max width, similar to other modes
-                    self._add_modifier_options_wrapped(controls_text, codes)
-                    if self.selected_modifiers:
-                        controls_text.append(f"Selected: {', '.join(self.selected_modifiers)}\n", style="bold cyan")
-                    if self.modifier_param_request:
-                        if self.modifier_param_request['type'] == 'fielder':
-                            controls_text.append("Enter fielder [1-9] for this modifier.\n", style="bold blue")
-                        elif self.modifier_param_request['type'] == 'base':
-                            controls_text.append("Enter base [1-4] for this modifier.\n", style="bold blue")
-                    controls_text.append("Use letter keys to add, [0] to go back, [ENTER] to apply and exit.\n", style="bold blue")
+                    if self.selected_modifier_group == 'h':
+                        # Custom wizard UI for Hit Location
+                        self._render_hit_location_builder(controls_text)
+                    else:
+                        # Render options in wrapped rows with max width, similar to other modes
+                        self._add_modifier_options_wrapped(controls_text, codes)
+                        if self.selected_modifiers:
+                            controls_text.append(f"Selected: {', '.join(self.selected_modifiers)}\n", style="bold cyan")
+                        if self.modifier_param_request:
+                            if self.modifier_param_request['type'] == 'fielder':
+                                controls_text.append("Enter fielder [1-9] for this modifier.\n", style="bold blue")
+                            elif self.modifier_param_request['type'] == 'base':
+                                controls_text.append("Enter base [1-4] for this modifier.\n", style="bold blue")
+                        controls_text.append("Use letter keys to add, [0] to go back, [ENTER] to apply and exit.\n", style="bold blue")
             elif self.detail_mode_result:
                 controls_text.append(f"Result: {self.detail_mode_result}\n", style="bold red")
                 
@@ -1308,7 +1320,12 @@ class RetrosheetEditor:
 
     def _handle_modifier_mode_input(self, key: str) -> None:
         """Handle input when selecting additional (auxiliary) play details."""
-        # Finish and apply modifiers
+        # If we're in the Hit Location wizard, handle keys here first
+        if self.selected_modifier_group == 'h':
+            if self._handle_hit_location_input(key):
+                return
+
+        # Finish and apply modifiers (only when not inside a wizard)
         if key in ['\r', '\n']:
             self._apply_modifiers_to_current_play()
             # Return to pitch mode after applying modifiers
@@ -1341,6 +1358,12 @@ class RetrosheetEditor:
         if self.selected_modifier_group is None:
             if key in self.modifier_groups:
                 self.selected_modifier_group = key
+                # Initialize Hit Location builder state if chosen
+                if key == 'h':
+                    self.hit_location_active = True
+                    self.hit_location_positions = ""
+                    self.hit_location_suffix = ""
+                    self.hit_location_depth = ""
             return
 
         # Choose option within group
@@ -1356,6 +1379,131 @@ class RetrosheetEditor:
             else:
                 self._append_modifier_to_current_play(code)
         # Any other key ignored
+
+    def _render_hit_location_builder(self, controls_text: Text) -> None:
+        """Render the Hit Location builder UI inside the modifiers panel."""
+        # Positions
+        pos_display = self.hit_location_positions or "(none)"
+        controls_text.append("Positions (enter 1-2 digits [1-9]): ", style="bold blue")
+        controls_text.append(f"{pos_display}\n")
+
+        # M / L toggles based on positions
+        allow_m = any(ch in ['4', '6'] for ch in self.hit_location_positions)
+        # L only applies for exactly 7 or 9, not multi-position like 78 or 89
+        allow_l = self.hit_location_positions in ['7', '9']
+
+        if allow_m:
+            m_state = "ON" if self.hit_location_suffix == 'M' else "OFF"
+            controls_text.append("[M] Midfield (4/6 only): ", style="bold blue")
+            controls_text.append(f"{m_state}\n", style="bold cyan")
+        if allow_l:
+            l_state = "ON" if self.hit_location_suffix == 'L' else "OFF"
+            controls_text.append("[L] Near the foul line (7/9 only): ", style="bold blue")
+            controls_text.append(f"{l_state}\n", style="bold cyan")
+
+        # Foul territory toggle (for exact positions 2,3,5,7,9 or dual 23/25)
+        allow_f = self.hit_location_positions in ['2', '3', '5', '7', '9', '23', '25']
+        if allow_f:
+            f_state = "ON" if self.hit_location_foul else "OFF"
+            controls_text.append("[F] Foul territory (2/3/5/7/9 or 23/25): ", style="bold blue")
+            controls_text.append(f"{f_state}\n", style="bold cyan")
+
+        # Depth selection
+        depth_display = self.hit_location_depth or "Normal"
+        controls_text.append("Depth: [S] Shallow  [N] Normal  [D] Deep  [X] Extra Deep (XD)\n", style="bold blue")
+        controls_text.append(f"Current: {depth_display}\n", style="bold cyan")
+
+        # Instructions
+        controls_text.append("[0] Back  [ENTER] Add to play\n", style="bold blue")
+
+    def _handle_hit_location_input(self, key: str) -> bool:
+        """Handle input for the Hit Location builder. Returns True if handled."""
+        if not self.hit_location_active:
+            return False
+
+        # Back to group selection
+        if key == '0':
+            self.selected_modifier_group = None
+            self.hit_location_active = False
+            self.hit_location_positions = ""
+            self.hit_location_suffix = ""
+            self.hit_location_depth = ""
+            self.hit_location_foul = False
+            return True
+
+        # Enter digits for positions (up to 2)
+        if key in [str(d) for d in range(1, 10)]:
+            if len(self.hit_location_positions) < 2:
+                self.hit_location_positions += key
+            return True
+
+        # Toggle M (only when positions include 4 or 6)
+        if key == 'm':
+            if any(ch in ['4', '6'] for ch in self.hit_location_positions):
+                self.hit_location_suffix = 'M' if self.hit_location_suffix != 'M' else ''
+            return True
+
+        # Toggle L (only when positions include 7 or 9)
+        if key == 'l':
+            if self.hit_location_positions in ['7', '9']:
+                self.hit_location_suffix = 'L' if self.hit_location_suffix != 'L' else ''
+            return True
+
+        # Toggle F (only when positions are exactly 2,3,5,7,9, or dual 23/25)
+        if key == 'f':
+            if self.hit_location_positions in ['2', '3', '5', '7', '9', '23', '25']:
+                self.hit_location_foul = not self.hit_location_foul
+            return True
+
+        # Depth selection
+        if key == 's':
+            self.hit_location_depth = 'S'
+            return True
+        if key == 'n':
+            self.hit_location_depth = ''  # Normal depth has no code
+            return True
+        if key == 'd':
+            self.hit_location_depth = 'D'
+            return True
+        if key == 'x':
+            self.hit_location_depth = 'XD'
+            return True
+
+        # Apply on ENTER if valid
+        if key in ['\r', '\n']:
+            # Require at least one position digit
+            if not self.hit_location_positions:
+                return True  # ignore until valid
+            # Build code: positions + optional suffix + depth
+            code = self.hit_location_positions
+            if self.hit_location_suffix:
+                code += self.hit_location_suffix
+            if self.hit_location_depth:
+                code += self.hit_location_depth
+            if self.hit_location_foul:
+                code += 'F'
+            self._append_hit_location_to_current_play(code)
+            # Reset builder and return to group selection (stay in modifiers UI)
+            self.hit_location_active = False
+            self.selected_modifier_group = None
+            self.hit_location_positions = ""
+            self.hit_location_suffix = ""
+            self.hit_location_depth = ""
+            self.hit_location_foul = False
+            return True
+
+        return False
+
+    def _append_hit_location_to_current_play(self, code: str) -> None:
+        """Append hit location code without a slash separator to the current play."""
+        current_game = self.event_file.games[self.current_game_index]
+        current_play = current_game.plays[self.current_play_index]
+        if not current_play.play_description:
+            return
+        # Append directly without space or slash
+        current_play.play_description += f"{code}"
+        current_play.edited = True
+        self._save_current_state()
 
     def _apply_modifiers_to_current_play(self) -> None:
         """Append selected modifiers to the current play description and save."""
