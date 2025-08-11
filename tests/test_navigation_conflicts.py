@@ -69,9 +69,8 @@ def test_changed_key_mappings_work(tmp_path):
     # Test that 'q' is no longer in pitch mode (it's reserved for navigation Quit)
     assert 'q' not in editor.pitch_hotkeys, "Q key should not be in pitch_hotkeys (reserved for navigation)"
     
-    # Test the changed play mode key: # for Grounded into double play
-    assert '#' in editor.play_hotkeys, "Hash key should be in play_hotkeys"
-    assert editor.play_hotkeys['#'] == 'GDP', "Hash should map to GDP (Grounded into double play)"
+    # The GDP key was moved to the Out Type wizard; '#' no longer in play hotkeys
+    assert '#' not in editor.play_hotkeys
     
     # Test that 'x' is no longer in play mode (it's reserved for navigation Undo)
     assert 'x' not in editor.play_hotkeys, "X key should not be in play_hotkeys (reserved for navigation)"
@@ -108,8 +107,8 @@ def test_new_keys_functionality(tmp_path):
     test_game.plays[0].pitches = ""
     test_game.plays[0].play_description = ""
     
-    # Test # key works for GDP (this would normally go through detail mode)
-    assert editor.play_hotkeys.get('#') == 'GDP', "Hash key should map to GDP for play mode"
+    # GDP is selected in detail mode, not play mode
+    assert editor.out_type_hotkeys.get('w') == 'GDP'
     
     # Test ! key works for LDP in detail mode
     assert editor.out_type_hotkeys.get('!') == 'LDP', "Exclamation key should map to LDP for detail mode"

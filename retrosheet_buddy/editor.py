@@ -68,23 +68,13 @@ def validate_shortcuts() -> None:
         '2': 'Double',
         '3': 'Triple',
         '4': 'Home run',
-        'k': 'Strikeout',
         'l': 'Walk',
         'y': 'Hit by pitch',
         'z': 'Error',
-        'g': "Fielder's choice",
-        'j': 'Double play',
-        '5': 'Triple play',
-        '6': 'Sacrifice fly',
-        '7': 'Sacrifice bunt',
         '8': 'Intentional walk',
         '9': 'Catcher interference',
         '0': 'Out advancing',
         ';': 'No play',
-        '#': 'Grounded into double play',
-        'd': 'Lined into double play',
-        '[': 'Force out',
-        ']': 'Unassisted out',
     }
     
     # Detail mode shortcuts (only active in detail mode)
@@ -116,6 +106,9 @@ def validate_shortcuts() -> None:
         'b': 'Bunt out',
         's': 'Sacrifice fly',
         'h': 'Sacrifice hit/bunt',
+        'k': 'Strikeout',
+        'c': "Fielder's choice",
+        'j': 'Double play',
         'w': 'Grounded into double play',
         '!': 'Lined into double play',
         'y': 'Triple play',
@@ -368,29 +361,20 @@ class RetrosheetEditor:
         }
         
         # Hotkey mappings for play results (consolidated to avoid duplication)
+        # Out-related results are selected via the Out Type wizard after choosing OUT
         self.play_hotkeys = {
             'w': 'OUT', # Out
             '1': 'S',   # Single
             '2': 'D',   # Double
             '3': 'T',   # Triple
             '4': 'HR',  # Home run
-            'k': 'K',   # Strikeout
             'l': 'W',   # Walk
             'y': 'HP',  # Hit by pitch
             'z': 'E',   # Error
-            'g': 'FC',  # Fielder's choice
-            'j': 'DP',  # Double play
-            '5': 'TP',  # Triple play
-            '6': 'SF',  # Sacrifice fly
-            '7': 'SH',  # Sacrifice bunt
             '8': 'IW',  # Intentional walk
             '9': 'CI',  # Catcher interference
             '0': 'OA',  # Out advancing
             ';': 'ND',  # No play
-            '#': 'GDP', # Grounded into double play
-            'd': 'LDP', # Lined into double play
-            '[': 'FO',  # Force out
-            ']': 'UO',  # Unassisted out
         }
         
         # Hotkey mappings for hit types in detail mode
@@ -424,6 +408,9 @@ class RetrosheetEditor:
             'b': 'B',    # Bunt out
             's': 'SF',   # Sacrifice fly
             'h': 'SH',   # Sacrifice hit/bunt
+            'k': 'K',    # Strikeout
+            'c': 'FC',   # Fielder's choice
+            'j': 'DP',   # Double play (generic)
             'w': 'GDP',  # Grounded into double play
             '!': 'LDP',  # Lined into double play
             'y': 'TP',   # Triple play
@@ -478,9 +465,9 @@ class RetrosheetEditor:
                 elif self.mode == 'play' and key in self.play_hotkeys:
                     # Only certain results should enter detail mode
                     result = self.play_hotkeys[key]
-                    if result == 'OUT' or result in ['S', 'D', 'T', 'HR', 'E', 'FC', 'SF', 'SH']:
+                    if result == 'OUT' or result in ['S', 'D', 'T', 'HR', 'E']:
                         # Generic out requires out-type/position details
-                        # Hits, errors, and sacrifices require hit-type/position details
+                        # Hits and errors require hit-type/position details
                         self._enter_detail_mode(result)
                     else:
                         # All other results should set immediately without entering detail mode
@@ -490,9 +477,9 @@ class RetrosheetEditor:
                         self._handle_modifier_mode_input(key)
                     else:
                         if key == '\r' or key == '\n':  # Enter key
-                            # Allow saving multi-fielder plays with ENTER
+                            # Allow saving when out-type selected; for K, no fielder required
                             if (self.detail_mode_result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO'] and 
-                                self.detail_mode_out_type and self.detail_mode_fielders):
+                                self.detail_mode_out_type and (self.detail_mode_fielders or self.detail_mode_out_type == 'K')):
                                 self._save_detail_mode_result()
                         else:
                             self._handle_detail_mode_input(key)
@@ -620,17 +607,20 @@ class RetrosheetEditor:
                 
                 # Handle different types of plays
                 if self.detail_mode_result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
-                    # Out types need out type and fielding positions
+                    # Out types need out type and fielding positions (K allows optional fielders)
                     if self.detail_mode_out_type is None:
                         controls_text.append("Out Type:\n", style="bold green")
                         self._add_hotkey_controls(controls_text, self.out_type_hotkeys, self._get_out_type_descriptions())
-                        controls_text.append("Fielding Positions: [1-9] (multiple allowed)\n", style="bold blue")
+                        controls_text.append("Fielding Positions: [1-9] (multiple allowed; optional for K)\n", style="bold blue")
                     elif not self.detail_mode_fielders:
                         controls_text.append(f"Out Type: {self.detail_mode_out_type}\n", style="bold green")
-                        controls_text.append("Fielding Positions:\n", style="bold blue")
-                        self._add_hotkey_controls(controls_text, self.fielding_position_hotkeys, self._get_fielding_position_descriptions())
-                        controls_text.append("Select fielders sequentially (e.g., 6-4-3 for DP)\n", style="bold cyan")
-                        controls_text.append("Press [ENTER] when done selecting fielders\n", style="bold cyan")
+                        if self.detail_mode_out_type != 'K':
+                            controls_text.append("Fielding Positions:\n", style="bold blue")
+                            self._add_hotkey_controls(controls_text, self.fielding_position_hotkeys, self._get_fielding_position_descriptions())
+                            controls_text.append("Select fielders sequentially (e.g., 6-4-3 for DP)\n", style="bold cyan")
+                            controls_text.append("Press [ENTER] when done selecting fielders\n", style="bold cyan")
+                        else:
+                            controls_text.append("Press [ENTER] to save strikeout, or add fielders for dropped 3rd strike (e.g., K23)\n", style="bold cyan")
                     else:
                         controls_text.append(f"Out Type: {self.detail_mode_out_type}\n", style="bold green")
                         controls_text.append(f"Fielding Positions: {', '.join(map(str, self.detail_mode_fielders))}\n", style="bold blue")
@@ -778,10 +768,11 @@ class RetrosheetEditor:
             'D': 'Double', 
             'T': 'Triple',
             'HR': 'Home run',
-            'K': 'Strikeout',
             'W': 'Walk',
             'HP': 'Hit by pitch',
             'E': 'Error',
+            # Out-type wizard items (selected after OUT)
+            'K': 'Strikeout',
             'FC': "Fielder's choice",
             'DP': 'Double play',
             'TP': 'Triple play',
@@ -833,6 +824,9 @@ class RetrosheetEditor:
             'B': 'Bunt out',
             'SF': 'Sacrifice fly',
             'SH': 'Sacrifice hit/bunt',
+            'K': 'Strikeout',
+            'FC': "Fielder's choice",
+            'DP': 'Double play',
             'GDP': 'Grounded into double play',
             'LDP': 'Lined into double play',
             'TP': 'Triple play',
@@ -1163,11 +1157,11 @@ class RetrosheetEditor:
         """Handle input in detail mode."""
         # Handle different types of plays
         if self.detail_mode_result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
-            # Out types need out type and fielding positions
+            # Out types need out type and fielding positions (K allows optional fielders)
             if self.detail_mode_out_type is None and key in self.out_type_hotkeys:
                 self.detail_mode_out_type = self.out_type_hotkeys[key]
             elif self.detail_mode_out_type is not None and key in self.fielding_position_hotkeys:
-                # Add fielding position to the list
+                # Add fielding position to the list (always allowed; optional for K)
                 self.detail_mode_fielders.append(self.fielding_position_hotkeys[key])
                 
                 # Don't automatically save - let user press ENTER when done selecting fielders
@@ -1277,8 +1271,11 @@ class RetrosheetEditor:
             return f"SH{fielding_position}/{hit_type}{fielding_position}"
         elif result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
             # New formatting for outs: fielders first, then out type(s)
-            out_type = hit_type  # may be base (G/L/F/P/B/SF/SH) or special (FO/UO/GDP/LDP/TP)
+            out_type = hit_type  # may be base (G/L/F/P/B/SF/SH/K/FC/DP) or special (FO/UO/GDP/LDP/TP)
             fielder_string = ''.join(str(f) for f in fielders_list)
+            # Strikeout special case: K with optional immediate fielder sequence (e.g., K23)
+            if out_type == 'K':
+                return 'K' + (fielder_string if fielder_string else '')
 
             tokens = [fielder_string] if fielder_string else [str(fielding_position)]
 

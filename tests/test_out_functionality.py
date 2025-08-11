@@ -40,19 +40,13 @@ def test_out_play_hotkeys(test_event_file, tmp_path):
     """Test that out play hotkeys are correctly defined."""
     editor = RetrosheetEditor(test_event_file, tmp_path)
     
-    # Check that out play hotkeys exist in the consolidated play_hotkeys
+    # Only generic OUT remains in play hotkeys; specific outs moved to wizard
     assert 'w' in editor.play_hotkeys
-    assert '#' in editor.play_hotkeys
-    assert 'd' in editor.play_hotkeys
-    assert '[' in editor.play_hotkeys
-    assert ']' in editor.play_hotkeys
-    
-    # Check that they map to correct values
     assert editor.play_hotkeys['w'] == 'OUT'
-    assert editor.play_hotkeys['#'] == 'GDP'
-    assert editor.play_hotkeys['d'] == 'LDP'
-    assert editor.play_hotkeys['['] == 'FO'
-    assert editor.play_hotkeys[']'] == 'UO'
+    assert '#' not in editor.play_hotkeys
+    assert 'd' not in editor.play_hotkeys
+    assert '[' not in editor.play_hotkeys
+    assert ']' not in editor.play_hotkeys
 
 
 def test_out_type_hotkeys(test_event_file, tmp_path):
@@ -67,11 +61,15 @@ def test_out_type_hotkeys(test_event_file, tmp_path):
     assert 'b' in editor.out_type_hotkeys
     assert 's' in editor.out_type_hotkeys
     assert 'h' in editor.out_type_hotkeys
-    assert 'w' in editor.out_type_hotkeys
-    assert '!' in editor.out_type_hotkeys
-    assert 'y' in editor.out_type_hotkeys
-    assert 'z' in editor.out_type_hotkeys
-    assert '[' in editor.out_type_hotkeys
+    # Expanded to include strikeout and choice/DP/TP
+    assert 'k' in editor.out_type_hotkeys
+    assert 'c' in editor.out_type_hotkeys
+    assert 'j' in editor.out_type_hotkeys
+    assert 'w' in editor.out_type_hotkeys  # GDP
+    assert '!' in editor.out_type_hotkeys  # LDP
+    assert 'y' in editor.out_type_hotkeys  # TP
+    assert 'z' in editor.out_type_hotkeys  # FO
+    assert '[' in editor.out_type_hotkeys  # UO
     
     # Check that they map to correct values
     assert editor.out_type_hotkeys['g'] == 'G'
@@ -81,6 +79,9 @@ def test_out_type_hotkeys(test_event_file, tmp_path):
     assert editor.out_type_hotkeys['b'] == 'B'
     assert editor.out_type_hotkeys['s'] == 'SF'
     assert editor.out_type_hotkeys['h'] == 'SH'
+    assert editor.out_type_hotkeys['k'] == 'K'
+    assert editor.out_type_hotkeys['c'] == 'FC'
+    assert editor.out_type_hotkeys['j'] == 'DP'
     assert editor.out_type_hotkeys['w'] == 'GDP'
     assert editor.out_type_hotkeys['!'] == 'LDP'
     assert editor.out_type_hotkeys['y'] == 'TP'

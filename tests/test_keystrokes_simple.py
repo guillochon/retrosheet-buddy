@@ -90,19 +90,14 @@ def test_keystroke_mappings(tmp_path):
         ('2', 'D', 'Double'),
         ('3', 'T', 'Triple'),
         ('4', 'HR', 'Home run'),
-        ('k', 'K', 'Strikeout'),
         ('l', 'W', 'Walk'),
         ('y', 'HP', 'Hit by pitch'),
         ('z', 'E', 'Error'),
-        ('g', 'FC', 'Fielder\'s choice'),
-        ('j', 'DP', 'Double play'),
-        ('5', 'TP', 'Triple play'),
-        ('6', 'SF', 'Sacrifice fly'),
-        ('7', 'SH', 'Sacrifice bunt'),
         ('8', 'IW', 'Intentional walk'),
         ('9', 'CI', 'Catcher interference'),
         ('0', 'OA', 'Out advancing'),
         (';', 'ND', 'No play'),
+        ('w', 'OUT', 'Out (opens wizard)'),
     ]
     
     for key, expected, description in play_tests:
@@ -116,7 +111,9 @@ def test_keystroke_mappings(tmp_path):
     pitch_keys = set(editor.pitch_hotkeys.keys())
     play_keys = set(editor.play_hotkeys.keys())
     conflicts = pitch_keys & play_keys
-    
+    # Allow 'l' to overlap intentionally: 'l' is Called strike in pitch mode and Walk in play mode
+    allowed_overlap = {'l'}
+    conflicts = {k for k in conflicts if k not in allowed_overlap}
     assert len(conflicts) == 0, f"Key conflicts found: {conflicts}"
 
 
