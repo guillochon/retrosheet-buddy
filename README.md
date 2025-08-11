@@ -51,23 +51,28 @@ Retrosheet Buddy uses three modes. Press TAB to cycle: PITCH → PLAY → DETAIL
 
 ### Quick examples
 
-- Strikeout from pitches:
-  - PITCH: C, F, S → auto-switches to PLAY
-  - PLAY: K
+- Auto strikeout from pitches:
+  - PITCH: C, C, S → auto: K; advances to next batter
 
-- Single to center on a line drive:
-  - PLAY: 1 → DETAIL: L, 8 → saved; returns to PITCH
+- Auto walk from pitches:
+  - PITCH: B, B, B, B → auto: W; advances to next batter
 
-- Groundout 6-3:
-  - PLAY: W → DETAIL: G, 6, 3 → saved; returns to PITCH
+- Normal pitch sequence (no result yet):
+  - PITCH: B, S, F, B → count 22; stays on batter
 
-- 6-4-3 double play:
-  - PLAY: X → DETAIL: G, 6, 4, 3 → saved; returns to PITCH
+- Single, grounder to shortstop:
+  - PLAY: 1 → DETAIL: g, 6 → auto-saved as S6/G6; returns to PITCH
 
-- Walk:
-  - PLAY: L → saved; returns to PITCH
+- Double to left, line drive:
+  - PLAY: 2 → DETAIL: l, 7 → auto-saved as D7/L7; returns to PITCH
 
-Tip: Refer to the in-app controls panel for the full shortcut reference and current mode.
+- Groundout 6-3 (generic OUT):
+  - PLAY: w (OUT) → DETAIL: g, 6, 3 → press Enter to save as 63/G; press TAB to return to PITCH
+
+- Grounded into DP 6-4-3:
+  - PLAY: w (OUT) → DETAIL: w (GDP), g, 6, 4, 3 → press Enter to save as 643/G/GDP; press TAB to return to PITCH
+
+Tip: Hits auto-save after selecting fielding; OUT/GDP/LDP require Enter to save. The in-app controls panel shows the full shortcut reference and current mode.
 
 ## Retrosheet Event File Format
 
@@ -106,45 +111,6 @@ retrosheet-buddy/
 ```bash
 uv run pytest
 ```
-
-### Code Formatting
-
-```bash
-uv run black .
-uv run isort .
-```
-
-## Current Status
-
-✅ **Complete and Working**
-- All core functionality implemented
-- Tests passing
-- Sample data included
-- Documentation complete
-- Ready for use
-
-## Limitations
-
-- Creating new event files from game IDs is not yet implemented
-- The pitch count calculation is simplified and may not handle all edge cases
-- Advanced Retrosheet features like replay reviews and ejections are not yet supported
-
-## Future Enhancements
-
-- Game ID to new file creation
-- More advanced pitch count logic
-- Support for replay reviews and ejections
-- Batch processing of multiple files
-- Export to other formats
-- Undo/redo functionality
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
 
 ## License
 
