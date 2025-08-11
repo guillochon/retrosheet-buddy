@@ -41,14 +41,15 @@ retrosheet-buddy path/to/your/file.EVN --output-dir ./my-outputs
 
 ### Interactive Controls
 
-Retrosheet Buddy uses a **dual-mode system** to avoid keystroke conflicts between pitch events and play results. You can switch between modes using the **TAB** key.
+Retrosheet Buddy uses a **three-mode system** to avoid keystroke conflicts between pitch events and play results. You can cycle through modes using the **TAB** key.
 
 #### Mode System
 
 - **PITCH MODE** (default): For recording individual pitches
-- **PLAY MODE**: For recording the final result of a play
+- **PLAY MODE**: For recording the final result of a play (including outs)
+- **DETAIL MODE**: For specifying hit type and fielding position after selecting a play result
 
-Press **TAB** to switch between modes. The current mode is displayed at the top of the controls panel.
+Press **TAB** to cycle through modes: PITCH → PLAY → DETAIL → PITCH. The current mode and next mode are displayed at the top of the controls panel.
 
 #### Navigation Keys
 
@@ -60,7 +61,6 @@ These work in both modes:
 - **S** or **↓**: Next game
 - **Q**: Quit
 - **X**: Undo last action
-- **Enter**: Save current state
 
 #### Pitch Mode Keystrokes
 
@@ -69,10 +69,9 @@ When in **PITCH MODE**, use these keys to record individual pitches:
 | Key | Pitch Type | Description |
 |-----|------------|-------------|
 | **B** | Ball | Ball |
-| **S** | Strike | Strike |
+| **S** | Swinging Strike | Swinging strike |
 | **F** | Foul | Foul |
 | **C** | Called Strike | Called strike |
-| **W** | Swinging Strike | Swinging strike |
 | **T** | Foul Tip | Foul tip |
 | **M** | Missed Bunt | Missed bunt |
 | **P** | Pitchout | Pitchout |
@@ -110,63 +109,106 @@ When in **PLAY MODE**, use these keys to record the final result:
 | **9** | Catcher Interference | Catcher interference |
 | **0** | Out Advancing | Out advancing |
 | **;** | No Play | No play |
+| **W** | OUT | Generic out |
+| **X** | GDP | Grounded into double play |
+| **D** | LDP | Lined into double play |
+| **[** | FO | Force out |
+| **]** | UO | Unassisted out |
+
+#### Detail Mode Keystrokes
+
+When in **DETAIL MODE** (entered automatically after selecting a play result), you can specify:
+
+**For hits and regular plays - Hit Type** (first selection):
+| Key | Hit Type | Description |
+|-----|----------|-------------|
+| **G** | Grounder | Ground ball |
+| **L** | Line Drive | Line drive |
+| **F** | Fly Ball | Fly ball |
+| **P** | Pop Up | Pop up |
+| **B** | Bunt | Bunt |
+
+**Fielding Position** (second selection):
+| Key | Position | Description |
+|-----|----------|-------------|
+| **1** | Pitcher | Pitcher |
+| **2** | Catcher | Catcher |
+| **3** | First Base | First base |
+| **4** | Second Base | Second base |
+| **5** | Third Base | Third base |
+| **6** | Shortstop | Shortstop |
+| **7** | Left Field | Left field |
+| **8** | Center Field | Center field |
+| **9** | Right Field | Right field |
+
+**Note**: For multi-fielder plays (like double plays), you can enter multiple positions in sequence. For example, for a 6-4-3 double play, you would enter **6**, then **4**, then **3**.
+
+**For outs - Out Type** (first selection):
+| Key | Out Type | Description |
+|-----|----------|-------------|
+| **G** | Ground Out | Ground out |
+| **L** | Line Out | Line out |
+| **F** | Fly Out | Fly out |
+| **P** | Pop Out | Pop out |
+| **B** | Bunt Out | Bunt out |
+| **S** | Sacrifice Fly | Sacrifice fly |
+| **H** | Sacrifice Hit/Bunt | Sacrifice hit/bunt |
+| **W** | Grounded into DP | Grounded into double play |
+| **X** | Lined into DP | Lined into double play |
+| **Y** | Triple Play | Triple play |
+| **Z** | Force Out | Force out |
+| **[** | Unassisted Out | Unassisted out |
+
+After selecting both hit type/out type and fielding position, the detailed play result is automatically saved, the editor progresses to the next batter, and returns to pitch mode.
 
 #### Workflow Example
 
 Here's how to record a typical at-bat:
 
 1. **Start in PITCH MODE** (default)
-2. Press **S** to record a strike
+2. Press **C** to record a called strike
 3. Press **B** to record a ball  
 4. Press **F** to record a foul
-5. Press **S** to record another strike (strikeout)
-6. Press **TAB** to switch to PLAY MODE
-7. Press **K** to record the strikeout result
-8. Press **Enter** to save
+5. Press **S** to record a swinging strike (strikeout), buddy switches automatically to PLAY mode
+6. Press **K** to record the strikeout result
 
-**Note**: Use **X** to undo any mistake, and **TAB** to switch between recording pitches and play results.
+**For detailed play results** (like hits):
+1. In **PLAY MODE**, press **1** to select a single
+2. Automatically enters **DETAIL MODE**
+3. Press **G** to specify it's a grounder
+4. Press **6** to specify it was fielded by the shortstop
+5. Automatically saves the result as "S6/G6" (single to shortstop, grounder), progresses to the next batter, and returns to pitch mode
 
-#### Troubleshooting
+**For out types**:
+1. In **PLAY MODE**, press **W** to select a generic out
+2. Automatically enters **DETAIL MODE**
+3. Press **G** to specify it's a ground out
+4. Press **6** to specify it was fielded by the shortstop
+5. Automatically saves the result as "G6" (ground out to shortstop), progresses to the next batter, and returns to pitch mode
 
-**Strike Key Not Working?**
-The strike key **S** should work properly in **PITCH MODE**. If it's not working:
-1. Make sure you're in **PITCH MODE** (check the mode indicator)
-2. Press **TAB** to switch to PITCH MODE if needed
-3. The **S** key should add a strike to the pitch sequence
+**For double plays**:
+1. In **PLAY MODE**, press **X** to select "Grounded into double play"
+2. Automatically enters **DETAIL MODE**
+3. Press **G** to specify it's a ground out
+4. Press **6** to specify it was fielded by the shortstop
+5. Automatically saves the result as "G6/GDP/G6" (grounded into double play, fielded by shortstop), progresses to the next batter, and returns to pitch mode
 
-**Key Conflicts Resolved**
-Previously, there were conflicts between pitch and play keystrokes. This has been resolved by:
-- Using different keys for play results (e.g., **L** for walk instead of **W**)
-- Implementing the mode system to separate pitch and play functionality
-- Ensuring no key is used for both pitch events and play results
+**For multi-fielder plays**:
+1. In **PLAY MODE**, press **X** to select "Grounded into double play"
+2. Automatically enters **DETAIL MODE**
+3. Press **G** to specify it's a ground out
+4. Press **6** to specify the shortstop fielded it
+5. Press **4** to specify the second baseman received the throw
+6. Press **3** to specify the first baseman received the final throw
+7. Automatically saves the result as "643/G6/GDP/G6" (6-4-3 double play, ground out to shortstop), progresses to the next batter, and returns to pitch mode
 
-**Testing Your Keystrokes**
-Run the test script to verify all keystrokes work:
-
-```bash
-python test_keystrokes_simple.py
-```
-
-This will test all keystroke mappings and confirm there are no conflicts.
+**Note**: Use **X** to undo any mistake, and **TAB** to cycle through modes (PITCH → PLAY → DETAIL → PITCH).
 
 #### Tips
 
 - **Always check the mode indicator** before pressing keys
-- **Use TAB frequently** to switch between modes as needed
-- **Save regularly** with the Enter key
+- **Use TAB frequently** to cycle through modes as needed
 - **Practice with the test script** to get familiar with the keystrokes
-- **Remember the new play result keys** (L for walk, Y for hit by pitch, etc.)
-
-#### Key Changes from Previous Version
-
-- **S** now only works for strikes in PITCH MODE
-- **W** now only works for swinging strikes in PITCH MODE  
-- **L** is used for walks in PLAY MODE
-- **Y** is used for hit by pitch in PLAY MODE
-- **TAB** key added for mode switching
-- **X** key added for undo functionality
-- **"In play"** removed from pitch mode (use TAB to switch to play mode instead)
-- All conflicts have been resolved
 
 ## Retrosheet Event File Format
 

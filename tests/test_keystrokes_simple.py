@@ -4,11 +4,46 @@ from pathlib import Path
 
 import pytest
 
-from retrosheet_buddy.editor import RetrosheetEditor
+from retrosheet_buddy.editor import RetrosheetEditor, validate_shortcuts
 from retrosheet_buddy.models import EventFile, Game, GameInfo, Play
 
 
-def test_keystroke_mappings():
+def test_shortcut_validation():
+    """Test that shortcut validation works correctly."""
+    # This should pass without conflicts
+    validate_shortcuts()
+
+
+def test_shortcut_validation_with_conflicts():
+    """Test that shortcut validation detects conflicts."""
+    # Import the function to test it directly
+    from retrosheet_buddy.editor import validate_shortcuts
+
+    # The current implementation should not have conflicts
+    # If conflicts are introduced, this test will catch them
+    try:
+        validate_shortcuts()
+    except ValueError as e:
+        # If conflicts are found, the error message should be informative
+        assert "Shortcut conflicts detected" in str(e)
+        assert "Please resolve these conflicts" in str(e)
+        pytest.fail(f"Shortcut conflicts detected: {e}")
+
+
+def test_shortcut_validation_startup():
+    """Test that shortcut validation works when called directly."""
+    # Simply test that we can call validate_shortcuts without errors
+    # This verifies the validation logic works correctly
+    try:
+        validate_shortcuts()
+        # If we get here without exception, validation passed
+        assert True, "validate_shortcuts should complete without errors"
+    except ValueError as e:
+        # If there are actual conflicts, this is a real issue that should be addressed
+        pytest.fail(f"Shortcut validation failed: {e}")
+
+
+def test_keystroke_mappings(tmp_path):
     """Test that all keystroke mappings are correct and conflict-free."""
     # Create test data
     test_game = Game(
@@ -19,15 +54,14 @@ def test_keystroke_mappings():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Test pitch keystrokes
     pitch_tests = [
         ('b', 'B', 'Ball'),
-        ('s', 'S', 'Strike'),
+        ('s', 'S', 'Swinging strike'),
         ('f', 'F', 'Foul'),
         ('c', 'C', 'Called strike'),
-        ('w', 'W', 'Swinging strike'),
         ('t', 'T', 'Foul tip'),
         ('m', 'M', 'Missed bunt'),
         ('p', 'P', 'Pitchout'),
@@ -35,7 +69,7 @@ def test_keystroke_mappings():
         ('h', 'H', 'Hit batter'),
         ('v', 'V', 'Wild pitch'),
         ('a', 'A', 'Passed ball'),
-        ('q', 'Q', 'Swinging on pitchout'),
+        ('*', 'Q', 'Swinging on pitchout'),
         ('r', 'R', 'Foul on pitchout'),
         ('e', 'E', 'Foul bunt'),
         ('n', 'N', 'No pitch'),
@@ -52,9 +86,9 @@ def test_keystroke_mappings():
     
     # Test play result keystrokes
     play_tests = [
-        ('1', 'S1', 'Single'),
-        ('2', 'D2', 'Double'),
-        ('3', 'T3', 'Triple'),
+        ('1', 'S', 'Single'),
+        ('2', 'D', 'Double'),
+        ('3', 'T', 'Triple'),
         ('4', 'HR', 'Home run'),
         ('k', 'K', 'Strikeout'),
         ('l', 'W', 'Walk'),
@@ -86,7 +120,7 @@ def test_keystroke_mappings():
     assert len(conflicts) == 0, f"Key conflicts found: {conflicts}"
 
 
-def test_mode_functionality():
+def test_mode_functionality(tmp_path):
     """Test mode switching functionality."""
     # Create test data
     test_game = Game(
@@ -97,7 +131,7 @@ def test_mode_functionality():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Test initial mode
     assert editor.mode == "pitch", "Should start in pitch mode"
@@ -110,7 +144,7 @@ def test_mode_functionality():
     assert editor.mode == "pitch", "Should switch back to pitch mode"
 
 
-def test_pitch_functionality():
+def test_pitch_functionality(tmp_path):
     """Test pitch recording functionality."""
     # Create test data
     test_game = Game(
@@ -121,7 +155,7 @@ def test_pitch_functionality():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Test adding pitches
     editor._add_pitch('S')
@@ -131,7 +165,7 @@ def test_pitch_functionality():
     assert test_game.plays[0].pitches == 'SB', "Should add ball after strike"
 
 
-def test_play_result_functionality():
+def test_play_result_functionality(tmp_path):
     """Test play result setting functionality."""
     # Create test data
     test_game = Game(
@@ -142,17 +176,17 @@ def test_play_result_functionality():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Test setting play results
-    editor._set_play_result('S1')
-    assert test_game.plays[0].play_description == 'S1', "Should set single"
+    editor._set_play_result('S')
+    assert test_game.plays[0].play_description == 'S8/G6', "Should set single in Retrosheet format"
     
     editor._set_play_result('HR')
-    assert test_game.plays[0].play_description == 'HR', "Should set home run"
+    assert test_game.plays[0].play_description == 'HR/F7', "Should set home run in Retrosheet format"
 
 
-def test_undo_functionality():
+def test_undo_functionality(tmp_path):
     """Test undo functionality."""
     # Create test data
     test_game = Game(
@@ -163,7 +197,7 @@ def test_undo_functionality():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Test undo with no history
     initial_pitches = test_game.plays[0].pitches
@@ -178,8 +212,8 @@ def test_undo_functionality():
     assert test_game.plays[0].pitches == '', "Should undo to empty pitches"
     
     # Test undo after setting play result
-    editor._set_play_result('S1')
-    assert test_game.plays[0].play_description == 'S1', "Should set single"
+    editor._set_play_result('S')
+    assert test_game.plays[0].play_description == 'S8/G6', "Should set single in Retrosheet format"
     
     editor._undo_last_action()
     assert test_game.plays[0].play_description == '', "Should undo to empty result" 

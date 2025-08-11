@@ -1,6 +1,6 @@
 """Data models for Retrosheet event file records."""
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,8 @@ class GameInfo(BaseModel):
     temperature: Optional[str] = None
     attendance: Optional[str] = None
     umpires: List[str] = Field(default_factory=list)
+    # Preserve all info lines as (key, value) pairs in original order to avoid data loss
+    info_lines: List[Tuple[str, str]] = Field(default_factory=list)
 
 
 class Player(BaseModel):
@@ -30,8 +32,10 @@ class Play(BaseModel):
     team: int  # 0 for visiting, 1 for home
     batter_id: str
     count: str  # e.g., "00", "12", "??"
+    original_count: Optional[str] = None  # original count from file (preserves "??")
     pitches: str  # pitch sequence
     play_description: str  # the actual play result
+    edited: bool = False  # True if the play has been edited in the editor
 
 
 class Game(BaseModel):

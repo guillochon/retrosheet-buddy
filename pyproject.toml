@@ -23,6 +23,7 @@ dev = [
 
 [project.scripts]
 retrosheet-buddy = "retrosheet_buddy.main:main"
+rb = "retrosheet_buddy.main:main"
 
 [build-system]
 requires = ["hatchling"]

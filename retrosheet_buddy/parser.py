@@ -22,13 +22,13 @@ class RetrosheetParser:
         for pitch in pitches:
             if pitch == 'B':
                 balls += 1
-            elif pitch in ['S', 'C', 'W']:  # Regular strikes
+            elif pitch in ['S', 'C']:  # Swinging strike, Called strike
                 strikes += 1
             elif pitch == 'F':  # Foul ball
                 # Foul balls only count as strikes up to 2 strikes
                 if strikes < 2:
                     strikes += 1
-            # Other pitch types (T, H, V, A, M, P, I) don't affect count
+            # Other pitch types (T, H, V, A, M, P, I, Q, R, E, N, O, U) don't affect count
         
         # Cap balls at 4 (walk) and strikes at 3 (strikeout)
         balls = min(balls, 4)
@@ -86,6 +86,9 @@ class RetrosheetParser:
         info_type = parts[1]
         data = parts[2].strip('"')
         
+        # Always append raw info key/value to preserve order and unknown fields
+        self.current_game.info.info_lines.append((info_type, data))
+
         if info_type == 'visteam':
             self.current_game.info.away_team = data
         elif info_type == 'hometeam':
@@ -126,17 +129,25 @@ class RetrosheetParser:
         if len(parts) < 6:
             return
             
-        # Calculate count from pitches to ensure consistency
+        # Preserve original count and calculate working count
+        original_count = parts[4]
         pitches = parts[5]
-        calculated_count = self._calculate_count(pitches)
+        
+        # Store original count and calculate working count for display/logic
+        if original_count == "??":
+            count = self._calculate_count(pitches)
+        else:
+            count = original_count
         
         play = Play(
             inning=int(parts[1]),
             team=int(parts[2]),
             batter_id=parts[3],
-            count=calculated_count,
+            count=count,
+            original_count=original_count,
             pitches=pitches,
-            play_description=parts[6]
+            play_description=parts[6],
+            edited=False
         )
         self.current_game.plays.append(play)
 

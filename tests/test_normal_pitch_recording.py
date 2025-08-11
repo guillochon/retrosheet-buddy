@@ -8,7 +8,7 @@ from retrosheet_buddy.editor import RetrosheetEditor
 from retrosheet_buddy.models import EventFile, Game, GameInfo, Play
 
 
-def test_normal_pitch_recording():
+def test_normal_pitch_recording(tmp_path):
     """Test that normal pitch recording works without triggering auto walk/strikeout."""
     # Create test game with a play
     test_game = Game(
@@ -21,7 +21,7 @@ def test_normal_pitch_recording():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Start with first play
     editor.current_play_index = 0
@@ -42,7 +42,7 @@ def test_normal_pitch_recording():
     assert editor.current_play_index == 0, f"Expected to stay on same play, but moved to {editor.current_play_index}"
 
 
-def test_foul_ball_behavior():
+def test_foul_ball_behavior(tmp_path):
     """Test that foul balls don't count as strikes after 2 strikes."""
     # Create test game with a play
     test_game = Game(
@@ -55,7 +55,7 @@ def test_foul_ball_behavior():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Start with first play
     editor.current_play_index = 0

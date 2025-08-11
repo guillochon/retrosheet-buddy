@@ -3,6 +3,7 @@
 import platform
 import sys
 from pathlib import Path
+from typing import List, Tuple
 
 import click
 from rich.console import Console
@@ -14,6 +15,172 @@ from rich.text import Text
 from .models import EventFile, Game
 from .parser import parse_event_file
 from .writer import write_event_file
+
+
+def validate_shortcuts() -> None:
+    """
+    Validate that no navigation shortcuts conflict with mode shortcuts.
+    
+    The application uses a mode-based system where:
+    - Navigation shortcuts work in all modes
+    - Mode shortcuts only work in their specific mode
+    - Detail mode shortcuts only work in detail mode
+    
+    Raises:
+        ValueError: If any conflicts are found between navigation and mode shortcuts.
+    """
+                    # Define navigation shortcuts (work in all modes)
+    navigation_shortcuts = {
+        'q': 'Quit',
+        'left': 'Previous play',
+        'right': 'Next play',
+        'tab': 'Switch modes',
+        'x': 'Undo last action',
+        '\r': 'Enter key',
+        '\n': 'Enter key',
+    }
+    
+    # Define mode shortcuts from the editor
+    pitch_shortcuts = {
+        'b': 'Ball',
+        's': 'Swinging strike',
+        'f': 'Foul',
+        'c': 'Called strike',
+        't': 'Foul tip',
+        'm': 'Missed bunt',
+        'p': 'Pitchout',
+        'i': 'Intentional ball',
+        'h': 'Hit batter',
+        'v': 'Wild pitch',
+        'a': 'Passed ball',
+        '*': 'Swinging on pitchout',
+        'r': 'Foul on pitchout',
+        'e': 'Foul bunt',
+        'n': 'No pitch',
+        'o': 'Foul on bunt',
+        'u': 'Unknown',
+    }
+    
+    play_shortcuts = {
+        'w': 'Out',
+        '1': 'Single',
+        '2': 'Double',
+        '3': 'Triple',
+        '4': 'Home run',
+        'k': 'Strikeout',
+        'l': 'Walk',
+        'y': 'Hit by pitch',
+        'z': 'Error',
+        'g': "Fielder's choice",
+        'j': 'Double play',
+        '5': 'Triple play',
+        '6': 'Sacrifice fly',
+        '7': 'Sacrifice bunt',
+        '8': 'Intentional walk',
+        '9': 'Catcher interference',
+        '0': 'Out advancing',
+        ';': 'No play',
+        '#': 'Grounded into double play',
+        'd': 'Lined into double play',
+        '[': 'Force out',
+        ']': 'Unassisted out',
+    }
+    
+    # Detail mode shortcuts (only active in detail mode)
+    hit_type_shortcuts = {
+        'g': 'Grounder',
+        'l': 'Line drive',
+        'f': 'Fly ball',
+        'p': 'Pop up',
+        'b': 'Bunt',
+    }
+    
+    fielding_position_shortcuts = {
+        '1': 'Pitcher',
+        '2': 'Catcher',
+        '3': 'First base',
+        '4': 'Second base',
+        '5': 'Third base',
+        '6': 'Shortstop',
+        '7': 'Left field',
+        '8': 'Center field',
+        '9': 'Right field',
+    }
+    
+    out_type_shortcuts = {
+        'g': 'Ground out',
+        'l': 'Line out',
+        'f': 'Fly out',
+        'p': 'Pop out',
+        'b': 'Bunt out',
+        's': 'Sacrifice fly',
+        'h': 'Sacrifice hit/bunt',
+        'w': 'Grounded into double play',
+        '!': 'Lined into double play',
+        'y': 'Triple play',
+        'z': 'Force out',
+        '[': 'Unassisted out',
+    }
+    
+    # Check for conflicts between navigation and mode shortcuts
+    conflicts: List[Tuple[str, str, str, str]] = []
+    
+    # Check navigation vs pitch mode conflicts
+    for key in navigation_shortcuts:
+        if key in pitch_shortcuts:
+            conflicts.append((
+                key,
+                navigation_shortcuts[key],
+                'navigation',
+                f"pitch mode: {pitch_shortcuts[key]}"
+            ))
+    
+    # Check navigation vs play mode conflicts
+    for key in navigation_shortcuts:
+        if key in play_shortcuts:
+            conflicts.append((
+                key,
+                navigation_shortcuts[key],
+                'navigation',
+                f"play mode: {play_shortcuts[key]}"
+            ))
+    
+    # Check navigation vs detail mode conflicts
+    detail_mode_shortcuts = {
+        **hit_type_shortcuts,
+        **fielding_position_shortcuts,
+        **out_type_shortcuts,
+    }
+    
+    for key in navigation_shortcuts:
+        if key in detail_mode_shortcuts:
+            conflicts.append((
+                key,
+                navigation_shortcuts[key],
+                'navigation',
+                f"detail mode: {detail_mode_shortcuts[key]}"
+            ))
+    
+    # Remove duplicate conflicts (same key appearing in multiple comparisons)
+    unique_conflicts = []
+    seen_keys = set()
+    for conflict in conflicts:
+        if conflict[0] not in seen_keys:
+            unique_conflicts.append(conflict)
+            seen_keys.add(conflict[0])
+    
+    if unique_conflicts:
+        error_message = "CRITICAL: Navigation shortcut conflicts detected!\n\n"
+        for key, action1, context1, action2 in unique_conflicts:
+            error_message += f"  Key '{key}' conflicts:\n"
+            error_message += f"    - {context1}: {action1}\n"
+            error_message += f"    - {action2}\n\n"
+        
+        error_message += "Navigation shortcuts must have exclusive access to their keys.\n"
+        error_message += "Please reassign conflicting mode shortcuts to different keys.\n"
+        error_message += "All conflicts must be resolved for proper editor functionality."
+        
+        raise ValueError(error_message)
 
 
 def get_key() -> str:
@@ -88,7 +255,84 @@ class RetrosheetEditor:
         self.console = Console()
         self.current_game_index = 0
         self.current_play_index = 0
-        self.mode = 'pitch'  # 'pitch' or 'play'
+        self.mode = 'pitch'  # 'pitch', 'play', or 'detail'
+        
+        # Detail mode state
+        self.detail_mode_result = None  # The play result selected before entering detail mode
+        self.detail_mode_hit_type = None  # G, L, F, etc.
+        self.detail_mode_fielders = []  # List of fielders for multi-fielder plays (1-9)
+        self.detail_mode_out_type = None  # OUT, GDP, LDP, TP, etc.
+        self.detail_mode_runner_outs = []  # List of runner outs for force plays, DPs, etc.
+
+        # Additional (auxiliary) detail selection state
+        self.modifier_selection_active = False  # When True, detail mode shows additional detail groups/options
+        self.selected_modifier_group = None  # Currently selected group key
+        self.selected_modifiers = []  # Collected modifier codes to append (e.g., ["AP", "MREV"]) 
+        self.modifier_param_request = None  # e.g., { 'code': 'E$', 'type': 'fielder' } or { 'code': 'TH%', 'type': 'base' }
+        self.current_modifier_options_keymap = {}  # map single-letter key -> modifier code for current group view
+        self.modifiers_live_applied = False  # If True, modifiers are applied immediately upon selection
+        # Define modifier groups and descriptions
+        self.modifier_descriptions = {
+            # Bunt-related
+            'BP': 'Bunt pop up',
+            'BG': 'Ground ball bunt',
+            'BGDP': 'Bunt grounded into double play',
+            'BL': 'Line drive bunt',
+            'BPDP': 'Bunt popped into double play',
+            'SH': 'Sacrifice hit (bunt)',
+            # Ball type / plays
+            'G': 'Ground ball',
+            'L': 'Line drive',
+            'F': 'Fly ball',
+            'P': 'Pop fly',
+            'FL': 'Foul',
+            'IF': 'Infield fly rule',
+            'DP': 'Unspecified double play',
+            'TP': 'Unspecified triple play',
+            'GDP': 'Ground ball double play',
+            'GTP': 'Ground ball triple play',
+            'LDP': 'Lined into double play',
+            'LTP': 'Lined into triple play',
+            'NDP': 'No double play credited for this play',
+            'SF': 'Sacrifice fly',
+            'FO': 'Force out',
+            # Interference/obstruction
+            'BINT': 'Batter interference',
+            'INT': 'Interference',
+            'RINT': 'Runner interference',
+            'UINT': 'Umpire interference',
+            'OBS': 'Obstruction (fielder obstructing a runner)',
+            'FINT': 'Fan interference',
+            # Administrative / courtesy / reviews / misc
+            'AP': 'Appeal play',
+            'C': 'Called third strike',
+            'COUB': 'Courtesy batter',
+            'COUF': 'Courtesy fielder',
+            'COUR': 'Courtesy runner',
+            'MREV': 'Manager challenge of call on the field',
+            'UREV': 'Umpire review of call on the field',
+            'BOOT': 'Batting out of turn',
+            'IPHR': 'Inside the park home run',
+            'PASS': 'Runner passed another runner and was called out',
+            'BR': 'Runner hit by batted ball',
+            'TH': 'Throw',
+            'TH%': 'Throw to base %',
+            'R$': 'Relay throw from initial fielder to $',
+            'E$': 'Error on $',
+        }
+        self.modifier_groups = {
+            # Note: '0' is reserved for "back" in modifier UI; use mnemonic letters for groups
+            'b': ('Ball Types', ['G', 'L', 'F', 'P', 'FL', 'IF']),
+            's': ('Sacrifices', ['SF', 'SH']),
+            'u': ('Bunt Types', ['BP', 'BG', 'BL']),  # 'u' for bUnt to avoid collision with Ball Types
+            'd': ('DP/TP (Generic)', ['DP', 'TP']),
+            'v': ('DP/TP Variants', ['GDP', 'GTP', 'LDP', 'LTP', 'NDP', 'BGDP', 'BPDP']),
+            'i': ('Interference/Obstruction', ['BINT', 'INT', 'RINT', 'FINT', 'UINT', 'OBS']),
+            'a': ('Administrative', ['AP', 'BOOT', 'C', 'IPHR', 'PASS', 'BR', 'MREV', 'UREV']),
+            'c': ('Courtesy', ['COUB', 'COUF', 'COUR']),
+            't': ('Throws/Relays', ['TH', 'TH%', 'R$']),
+            'e': ('Errors', ['E$']),
+        }
         
         # Undo functionality
         self.undo_history = []  # List of (game_index, play_index, pitches, play_description) tuples
@@ -96,10 +340,9 @@ class RetrosheetEditor:
         # Hotkey mappings for pitch events (no conflicts)
         self.pitch_hotkeys = {
             'b': 'B',  # Ball
-            's': 'S',  # Strike
+            's': 'S',  # Swinging strike
             'f': 'F',  # Foul
             'c': 'C',  # Called strike
-            'w': 'W',  # Swinging strike
             't': 'T',  # Foul tip
             'm': 'M',  # Missed bunt
             'p': 'P',  # Pitchout
@@ -107,7 +350,7 @@ class RetrosheetEditor:
             'h': 'H',  # Hit batter
             'v': 'V',  # Wild pitch
             'a': 'A',  # Passed ball
-            'q': 'Q',  # Swinging on pitchout
+            '*': 'Q',  # Swinging on pitchout
             'r': 'R',  # Foul on pitchout
             'e': 'E',  # Foul bunt
             'n': 'N',  # No pitch
@@ -115,26 +358,71 @@ class RetrosheetEditor:
             'u': 'U',  # Unknown
         }
         
-        # Hotkey mappings for play results (using different keys to avoid conflicts)
+        # Hotkey mappings for play results (consolidated to avoid duplication)
         self.play_hotkeys = {
-            '1': 'S1',  # Single
-            '2': 'D2',  # Double
-            '3': 'T3',  # Triple
+            'w': 'OUT', # Out
+            '1': 'S',   # Single
+            '2': 'D',   # Double
+            '3': 'T',   # Triple
             '4': 'HR',  # Home run
             'k': 'K',   # Strikeout
-            'l': 'W',   # Walk (changed from 'w')
-            'y': 'HP',  # Hit by pitch (changed from 'h')
-            'z': 'E',   # Error (changed from 'e')
-            'g': 'FC',  # Fielder's choice (changed from 'f')
-            'j': 'DP',  # Double play (changed from 'd')
-            '5': 'TP',  # Triple play (changed from 't')
-            '6': 'SF',  # Sacrifice fly (changed from 's')
-            '7': 'SH',  # Sacrifice bunt (changed from 'b')
-            '8': 'IW',  # Intentional walk (changed from 'i')
-            '9': 'CI',  # Catcher interference (changed from 'c')
-            '0': 'OA',  # Out advancing (changed from 'o')
-            ';': 'ND',  # No play (changed from 'n')
+            'l': 'W',   # Walk
+            'y': 'HP',  # Hit by pitch
+            'z': 'E',   # Error
+            'g': 'FC',  # Fielder's choice
+            'j': 'DP',  # Double play
+            '5': 'TP',  # Triple play
+            '6': 'SF',  # Sacrifice fly
+            '7': 'SH',  # Sacrifice bunt
+            '8': 'IW',  # Intentional walk
+            '9': 'CI',  # Catcher interference
+            '0': 'OA',  # Out advancing
+            ';': 'ND',  # No play
+            '#': 'GDP', # Grounded into double play
+            'd': 'LDP', # Lined into double play
+            '[': 'FO',  # Force out
+            ']': 'UO',  # Unassisted out
         }
+        
+        # Hotkey mappings for hit types in detail mode
+        self.hit_type_hotkeys = {
+            'g': 'G',  # Grounder
+            'l': 'L',  # Line drive
+            'f': 'F',  # Fly ball
+            'p': 'P',  # Pop up
+            'b': 'B',  # Bunt
+        }
+        
+        # Hotkey mappings for fielding positions in detail mode
+        self.fielding_position_hotkeys = {
+            '1': 1,  # Pitcher
+            '2': 2,  # Catcher
+            '3': 3,  # First base
+            '4': 4,  # Second base
+            '5': 5,  # Third base
+            '6': 6,  # Shortstop
+            '7': 7,  # Left field
+            '8': 8,  # Center field
+            '9': 9,  # Right field
+        }
+        
+        # Hotkey mappings for out types in detail mode
+        self.out_type_hotkeys = {
+            'g': 'G',    # Ground out
+            'l': 'L',    # Line out
+            'f': 'F',    # Fly out
+            'p': 'P',    # Pop out
+            'b': 'B',    # Bunt out
+            's': 'SF',   # Sacrifice fly
+            'h': 'SH',   # Sacrifice hit/bunt
+            'w': 'GDP',  # Grounded into double play
+            '!': 'LDP',  # Lined into double play
+            'y': 'TP',   # Triple play
+            'z': 'FO',   # Force out
+            '[': 'UO',   # Unassisted out
+        }
+        
+
 
     def run(self) -> None:
         """Run the interactive editor."""
@@ -151,18 +439,49 @@ class RetrosheetEditor:
                 
                 if key == 'q':
                     break
-                elif key == 'left' or key == 'a':
+                elif key == 'left':
                     self._previous_play()
-                elif key == 'right' or key == 'd':
+                elif key == 'right':
                     self._next_play()
-                elif key == 'tab':  # Switch between pitch and play modes
-                    self.mode = 'play' if self.mode == 'pitch' else 'pitch'
+                elif key == 'tab':  # Switch between modes
+                    if self.mode == 'pitch':
+                        self.mode = 'play'
+                    elif self.mode == 'play':
+                        # If current play already has a result, offer additional details
+                        current_game = self.event_file.games[self.current_game_index]
+                        if current_game.plays and current_game.plays[self.current_play_index].play_description:
+                            self.mode = 'detail'
+                            self._start_modifier_detail_mode()
+                        else:
+                            self.mode = 'detail'
+                    elif self.mode == 'detail':
+                        self.mode = 'pitch'  # Cycle back to pitch mode
+                        self._reset_detail_mode()
                 elif key == 'x':  # Undo last action
                     self._undo_last_action()
                 elif self.mode == 'pitch' and key in self.pitch_hotkeys:
                     self._add_pitch(self.pitch_hotkeys[key])
                 elif self.mode == 'play' and key in self.play_hotkeys:
-                    self._set_play_result(self.play_hotkeys[key])
+                    # Only certain results should enter detail mode
+                    result = self.play_hotkeys[key]
+                    if result == 'OUT' or result in ['S', 'D', 'T', 'HR', 'E', 'FC', 'SF', 'SH']:
+                        # Generic out requires out-type/position details
+                        # Hits, errors, and sacrifices require hit-type/position details
+                        self._enter_detail_mode(result)
+                    else:
+                        # All other results should set immediately without entering detail mode
+                        self._set_play_result(result)
+                elif self.mode == 'detail':
+                    if self.modifier_selection_active:
+                        self._handle_modifier_mode_input(key)
+                    else:
+                        if key == '\r' or key == '\n':  # Enter key
+                            # Allow saving multi-fielder plays with ENTER
+                            if (self.detail_mode_result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO'] and 
+                                self.detail_mode_out_type and self.detail_mode_fielders):
+                                self._save_detail_mode_result()
+                        else:
+                            self._handle_detail_mode_input(key)
                 elif key == '\r' or key == '\n':  # Enter key
                     self._save_current_state()
                     
@@ -250,10 +569,72 @@ class RetrosheetEditor:
             # Pitch controls - generated from pitch_hotkeys dictionary
             controls_text.append("Pitch Events:\n", style="bold green")
             self._add_hotkey_controls(controls_text, self.pitch_hotkeys, self._get_pitch_descriptions())
-        else:
+        elif self.mode == 'play':
             # Play results - generated from play_hotkeys dictionary
             controls_text.append("Play Results:\n", style="bold red")
             self._add_hotkey_controls(controls_text, self.play_hotkeys, self._get_play_descriptions())
+        elif self.mode == 'detail':
+            # Detail mode controls
+            controls_text.append("Detail Mode:\n", style="bold yellow")
+            # Additional modifiers selection UI
+            if self.modifier_selection_active:
+                if self.selected_modifier_group is None:
+                    controls_text.append("Add Additional Details (optional):\n", style="bold green")
+                    self._add_modifier_group_controls_wrapped(controls_text)
+                    if self.selected_modifiers:
+                        controls_text.append(f"Selected: {', '.join(self.selected_modifiers)}\n", style="bold cyan")
+                    controls_text.append("Press the highlighted letter to choose a group, [ENTER] to apply and exit.\n", style="bold blue")
+                else:
+                    group_name, codes = self.modifier_groups[self.selected_modifier_group]
+                    controls_text.append(f"{group_name}:\n", style="bold green")
+                    # Render options in wrapped rows with max width, similar to other modes
+                    self._add_modifier_options_wrapped(controls_text, codes)
+                    if self.selected_modifiers:
+                        controls_text.append(f"Selected: {', '.join(self.selected_modifiers)}\n", style="bold cyan")
+                    if self.modifier_param_request:
+                        if self.modifier_param_request['type'] == 'fielder':
+                            controls_text.append("Enter fielder [1-9] for this modifier.\n", style="bold blue")
+                        elif self.modifier_param_request['type'] == 'base':
+                            controls_text.append("Enter base [1-4] for this modifier.\n", style="bold blue")
+                    controls_text.append("Use letter keys to add, [0] to go back, [ENTER] to apply and exit.\n", style="bold blue")
+            elif self.detail_mode_result:
+                controls_text.append(f"Result: {self.detail_mode_result}\n", style="bold red")
+                
+                # Handle different types of plays
+                if self.detail_mode_result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
+                    # Out types need out type and fielding positions
+                    if self.detail_mode_out_type is None:
+                        controls_text.append("Out Type:\n", style="bold green")
+                        self._add_hotkey_controls(controls_text, self.out_type_hotkeys, self._get_out_type_descriptions())
+                        controls_text.append("Fielding Positions: [1-9] (multiple allowed)\n", style="bold blue")
+                    elif not self.detail_mode_fielders:
+                        controls_text.append(f"Out Type: {self.detail_mode_out_type}\n", style="bold green")
+                        controls_text.append("Fielding Positions:\n", style="bold blue")
+                        self._add_hotkey_controls(controls_text, self.fielding_position_hotkeys, self._get_fielding_position_descriptions())
+                        controls_text.append("Select fielders sequentially (e.g., 6-4-3 for DP)\n", style="bold cyan")
+                        controls_text.append("Press [ENTER] when done selecting fielders\n", style="bold cyan")
+                    else:
+                        controls_text.append(f"Out Type: {self.detail_mode_out_type}\n", style="bold green")
+                        controls_text.append(f"Fielding Positions: {', '.join(map(str, self.detail_mode_fielders))}\n", style="bold blue")
+                        controls_text.append("Fielding Positions:\n", style="bold blue")
+                        self._add_hotkey_controls(controls_text, self.fielding_position_hotkeys, self._get_fielding_position_descriptions())
+                        controls_text.append("Press [ENTER] to save or add more positions\n", style="bold cyan")
+                else:
+                    # Regular hits need hit type and fielding position
+                    if self.detail_mode_hit_type is None:
+                        controls_text.append("Hit Type:\n", style="bold green")
+                        self._add_hotkey_controls(controls_text, self.hit_type_hotkeys, self._get_hit_type_descriptions())
+                        controls_text.append("Fielding Position: [1-9]\n", style="bold blue")
+                    elif not self.detail_mode_fielders:
+                        controls_text.append(f"Hit Type: {self.detail_mode_hit_type}\n", style="bold green")
+                        controls_text.append("Fielding Position:\n", style="bold blue")
+                        self._add_hotkey_controls(controls_text, self.fielding_position_hotkeys, self._get_fielding_position_descriptions())
+                    else:
+                        controls_text.append(f"Hit Type: {self.detail_mode_hit_type}\n", style="bold green")
+                        controls_text.append(f"Fielding Position: {self.detail_mode_fielders[0]}\n", style="bold blue")
+                        controls_text.append("Press [ENTER] to save and exit detail mode.\n", style="bold cyan")
+            else:
+                controls_text.append("Select a play result to enter detail mode.\n", style="bold red")
         
         # Calculate the height of the generated text
         text_height = self._calculate_text_height(controls_text)
@@ -281,16 +662,24 @@ class RetrosheetEditor:
         available_width = max_width - 2
         
         # Mode indicator
-        mode_style = "bold green" if self.mode == 'pitch' else "bold red"
+        mode_style = "bold green" if self.mode == 'pitch' else "bold red" if self.mode == 'play' else "bold yellow"
         controls_text.append(f"Current Mode: {self.mode.upper()}\n", style=mode_style)
         
-        # Mode switch instruction
-        mode_switch_text = "  [TAB] Switch modes"
+        # Determine which mode TAB would switch to
+        if self.mode == 'pitch':
+            next_mode = 'play'
+        elif self.mode == 'play':
+            next_mode = 'detail'
+        else:  # detail mode
+            next_mode = 'pitch'
+        
+        # Mode switch instruction with next mode
+        mode_switch_text = f"  [TAB] Switch to {next_mode.upper()} mode"
         if len(mode_switch_text) <= available_width:
             controls_text.append(mode_switch_text + "\n\n")
         else:
             # Split if needed (though unlikely for this short text)
-            controls_text.append("  [TAB] Switch\n  modes\n\n")
+            controls_text.append(f"  [TAB] Switch to\n  {next_mode.upper()} mode\n\n")
 
     def _add_navigation_section(self, controls_text: Text) -> None:
         """Add the navigation section with dynamic text generation."""
@@ -302,10 +691,10 @@ class RetrosheetEditor:
         
         controls_text.append("Navigation:\n", style="bold cyan")
         
-        # Navigation items
+        # Navigation items (use actual keys handled by get_key: left/right arrows)
         nav_items = [
-            "[A] Previous play",
-            "[D] Next play", 
+            "[Left] Previous play",
+            "[Right] Next play", 
             "[Q] Quit",
             "[X] Undo last action"
         ]
@@ -340,17 +729,16 @@ class RetrosheetEditor:
         """Get descriptions for pitch events."""
         return {
             'B': 'Ball',
-            'S': 'Called Strike',
+            'S': 'Swinging Strike',
             'F': 'Foul',
-            'C': 'Called',
-            'W': 'Swinging',
+            'C': 'Called Strike',
             'T': 'Foul tip',
-            'H': 'Hit batter',
-            'V': 'Wild pitch',
-            'A': 'Passed ball',
             'M': 'Missed bunt',
             'P': 'Pitchout',
             'I': 'Intentional ball',
+            'H': 'Hit batter',
+            'V': 'Wild pitch',
+            'A': 'Passed ball',
             'Q': 'Swinging on pitchout',
             'R': 'Foul on pitchout',
             'E': 'Foul bunt',
@@ -362,10 +750,10 @@ class RetrosheetEditor:
     def _get_play_descriptions(self) -> dict:
         """Get descriptions for play results."""
         return {
-            'S1': 'Single',
-            'D2': 'Double',
-            'T3': 'Triple',
-            'HR': 'HR',
+            'S': 'Single',
+            'D': 'Double', 
+            'T': 'Triple',
+            'HR': 'Home run',
             'K': 'Strikeout',
             'W': 'Walk',
             'HP': 'Hit by pitch',
@@ -379,7 +767,128 @@ class RetrosheetEditor:
             'CI': 'Catcher interference',
             'OA': 'Out advancing',
             'ND': 'No play',
+            # New out types
+            'OUT': 'Out',
+            'GDP': 'Grounded into DP',
+            'LDP': 'Lined into DP',
+            'FO': 'Force out',
+            'UO': 'Unassisted out',
         }
+
+    def _get_hit_type_descriptions(self) -> dict:
+        """Get descriptions for hit types."""
+        return {
+            'G': 'Grounder',
+            'L': 'Line drive',
+            'F': 'Fly ball',
+            'P': 'Pop up',
+            'B': 'Bunt',
+        }
+
+    def _get_fielding_position_descriptions(self) -> dict:
+        """Get descriptions for fielding positions."""
+        return {
+            1: 'Pitcher',
+            2: 'Catcher',
+            3: 'First base',
+            4: 'Second base',
+            5: 'Third base',
+            6: 'Shortstop',
+            7: 'Left field',
+            8: 'Center field',
+            9: 'Right field',
+        }
+
+    def _get_out_type_descriptions(self) -> dict:
+        """Get descriptions for out types in detail mode."""
+        return {
+            'G': 'Ground out',
+            'L': 'Line out',
+            'F': 'Fly out',
+            'P': 'Pop out',
+            'B': 'Bunt out',
+            'SF': 'Sacrifice fly',
+            'SH': 'Sacrifice hit/bunt',
+            'GDP': 'Grounded into double play',
+            'LDP': 'Lined into double play',
+            'TP': 'Triple play',
+            'FO': 'Force out',
+            'UO': 'Unassisted out',
+        }
+
+    def _generate_retrosheet_play_description(self, result: str, fielding_position: int = 0) -> str:
+        """Generate proper Retrosheet play description format."""
+        if result == 'S':  # Single
+            if fielding_position > 0:
+                return f"S{fielding_position}/G{fielding_position}"
+            return "S8/G6"  # Default to center field
+        elif result == 'D':  # Double
+            if fielding_position > 0:
+                return f"D{fielding_position}/L{fielding_position}"
+            return "D7/L7"  # Default to left field
+        elif result == 'T':  # Triple
+            if fielding_position > 0:
+                return f"T{fielding_position}/L{fielding_position}"
+            return "T8/L8"  # Default to center field
+        elif result == 'HR':  # Home run
+            return "HR/F7"  # Over left field fence
+        elif result == 'K':  # Strikeout
+            return "K"
+        elif result == 'W':  # Walk
+            return "W"
+        elif result == 'HP':  # Hit by pitch
+            return "HP"
+        elif result == 'E':  # Error
+            if fielding_position > 0:
+                return f"E{fielding_position}/G{fielding_position}"
+            return "E6/G6"  # Default to shortstop
+        elif result == 'FC':  # Fielder's choice
+            if fielding_position > 0:
+                return f"FC{fielding_position}/G{fielding_position}"
+            return "FC6/G6"
+        elif result == 'DP':  # Double play
+            return "DP/G6"
+        elif result == 'TP':  # Triple play
+            return "TP/G6"
+        elif result == 'SF':  # Sacrifice fly
+            if fielding_position > 0:
+                return f"SF{fielding_position}/F{fielding_position}"
+            return "SF8/F8"
+        elif result == 'SH':  # Sacrifice bunt
+            if fielding_position > 0:
+                return f"SH{fielding_position}/G{fielding_position}"
+            return "SH1/G1"
+        elif result == 'IW':  # Intentional walk
+            return "IW"
+        elif result == 'CI':  # Catcher interference
+            return "CI"
+        elif result == 'OA':  # Out advancing
+            return "OA"
+        elif result == 'ND':  # No play
+            return "ND"
+        # New out types
+        elif result == 'OUT':  # Generic out
+            if fielding_position > 0:
+                return f"G{fielding_position}"
+            return "G6"
+        elif result == 'GDP':  # Grounded into double play
+            if fielding_position > 0:
+                return f"G{fielding_position}/GDP/G{fielding_position}"
+            return "G6/GDP/G6"
+        elif result == 'LDP':  # Lined into double play
+            if fielding_position > 0:
+                return f"L{fielding_position}/LDP/L{fielding_position}"
+            return "L6/LDP/L6"
+        elif result == 'FO':  # Force out
+            if fielding_position > 0:
+                return f"G{fielding_position}/FO/G{fielding_position}"
+            return "G6/FO/G6"
+        elif result == 'UO':  # Unassisted out
+            if fielding_position > 0:
+                return f"G{fielding_position}/UO/G{fielding_position}"
+            return "G6/UO/G6"
+        else:
+            return result
 
     def _add_hotkey_controls(self, controls_text: Text, hotkeys: dict, descriptions: dict) -> None:
         """Add hotkey controls to the controls text."""
@@ -457,13 +966,16 @@ class RetrosheetEditor:
         for pitch in pitches:
             if pitch == 'B':
                 balls += 1
-            elif pitch in ['S', 'C', 'W']:  # Regular strikes
+            elif pitch in ['S', 'C']:  # Swinging strike, Called strike
                 strikes += 1
             elif pitch == 'F':  # Foul ball
                 # Foul balls only count as strikes up to 2 strikes
                 if strikes < 2:
                     strikes += 1
-            # Other pitch types (T, H, V, A, M, P, I) don't affect count
+            elif pitch == 'T':  # Foul tip
+                # Foul tips count as strikes and can result in strikeout
+                strikes += 1
+            # Other pitch types (H, V, A, M, P, I, Q, R, E, N, O, U) don't affect count
         
         # Cap balls at 4 (walk) and strikes at 3 (strikeout)
         balls = min(balls, 4)
@@ -487,6 +999,8 @@ class RetrosheetEditor:
         
         # Update count (fouls count as strikes)
         current_play.count = self._calculate_count(current_play.pitches)
+        # Mark as edited because pitches changed
+        current_play.edited = True
         
         # Check for automatic walk or strikeout
         balls, strikes = int(current_play.count[0]), int(current_play.count[1])
@@ -494,12 +1008,14 @@ class RetrosheetEditor:
         if balls == 4:
             # Automatic walk
             current_play.play_description = "W"
+            current_play.edited = True
             self._save_current_state()
             # Move to next batter
             self._next_play()
         elif strikes == 3:
             # Automatic strikeout
             current_play.play_description = "K"
+            current_play.edited = True
             self._save_current_state()
             # Move to next batter
             self._next_play()
@@ -514,7 +1030,11 @@ class RetrosheetEditor:
         # Save state before making changes
         self._save_state_for_undo()
         
-        current_play.play_description = result
+        # Generate proper Retrosheet play description
+        play_description = self._generate_retrosheet_play_description(result)
+        current_play.play_description = play_description
+        current_play.edited = True
+        
         self._save_current_state()
 
     def _save_current_state(self) -> None:
@@ -561,6 +1081,8 @@ class RetrosheetEditor:
         
         current_play.pitches = pitches
         current_play.play_description = play_description
+        # Undo restores previous state; mark as not edited relative to that state
+        current_play.edited = False
         
         # Update count (fouls count as strikes)
         current_play.count = self._calculate_count(current_play.pitches)
@@ -568,10 +1090,342 @@ class RetrosheetEditor:
         self.console.print("Undo completed", style="green")
         self._save_current_state()
 
+    def _enter_detail_mode(self, result: str) -> None:
+        """Enter detail mode for specifying hit type and fielding position."""
+        self.detail_mode_result = result
+        self.detail_mode_hit_type = None
+        self.detail_mode_fielding_position = None
+        self.mode = 'detail'
+
+    def _handle_detail_mode_input(self, key: str) -> None:
+        """Handle input in detail mode."""
+        # Handle different types of plays
+        if self.detail_mode_result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
+            # Out types need out type and fielding positions
+            if self.detail_mode_out_type is None and key in self.out_type_hotkeys:
+                self.detail_mode_out_type = self.out_type_hotkeys[key]
+            elif self.detail_mode_out_type is not None and key in self.fielding_position_hotkeys:
+                # Add fielding position to the list
+                self.detail_mode_fielders.append(self.fielding_position_hotkeys[key])
+                
+                # Don't automatically save - let user press ENTER when done selecting fielders
+                # This allows for multi-fielder plays like 6-4-3 double plays
+        else:
+            # Regular hits need hit type and fielding position
+            if key in self.hit_type_hotkeys:
+                self.detail_mode_hit_type = self.hit_type_hotkeys[key]
+            elif self.detail_mode_hit_type is not None and key in self.fielding_position_hotkeys:
+                # For hits, we only need one fielding position
+                self.detail_mode_fielders.append(self.fielding_position_hotkeys[key])
+                
+                # Automatically save and progress to next batter when both selections are complete
+                if self.detail_mode_result and self.detail_mode_hit_type and self.detail_mode_fielders:
+                    self._save_detail_mode_result()
+
+    def _save_detail_mode_result(self) -> None:
+        """Save the detailed play result and exit detail mode."""
+        # Check if we have the required selections based on play type
+        if self.detail_mode_result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
+            # Out types need out type and fielding positions
+            if self.detail_mode_result and self.detail_mode_out_type and self.detail_mode_fielders:
+                # Generate the detailed play description
+                play_description = self._generate_detailed_play_description(
+                    self.detail_mode_result,
+                    self.detail_mode_out_type,
+                    self.detail_mode_fielders
+                )
+                
+                # Set the play result
+                current_game = self.event_file.games[self.current_game_index]
+                current_play = current_game.plays[self.current_play_index]
+                
+                # Save state before making changes
+                self._save_state_for_undo()
+                
+                current_play.play_description = play_description
+                current_play.edited = True
+                self._save_current_state()
+                
+                # Stay in detail mode after saving out results to allow further details
+                # Do not advance to next play automatically
+            else:
+                self.console.print("Please complete all detail selections", style="yellow")
+        else:
+            # Regular hits need hit type and fielding position
+            if self.detail_mode_result and self.detail_mode_hit_type and self.detail_mode_fielders:
+                # Generate the detailed play description
+                play_description = self._generate_detailed_play_description(
+                    self.detail_mode_result,
+                    self.detail_mode_hit_type,
+                    self.detail_mode_fielders[0]  # Use first fielder for hits
+                )
+                
+                # Set the play result
+                current_game = self.event_file.games[self.current_game_index]
+                current_play = current_game.plays[self.current_play_index]
+                
+                # Save state before making changes
+                self._save_state_for_undo()
+                
+                current_play.play_description = play_description
+                current_play.edited = True
+                self._save_current_state()
+                
+                # After saving main detail, optionally allow modifiers
+                if self.selected_modifiers:
+                    # Append modifiers to existing description
+                    current_play.play_description += self._format_modifiers_suffix()
+                    self._save_current_state()
+                # Exit detail mode and return to pitch mode
+                self.mode = 'pitch'
+                self._reset_detail_mode()
+                
+                # Automatically progress to the next batter
+                self._next_play()
+            else:
+                self.console.print("Please complete all detail selections", style="yellow")
+
+    def _generate_detailed_play_description(self, result: str, hit_type: str, fielders) -> str:
+        """Generate detailed Retrosheet play description with hit type and fielding positions."""
+        # Handle fielders parameter - can be int (single) or list (multiple)
+        if isinstance(fielders, int):
+            fielding_position = fielders
+            fielders_list = [fielders]
+        else:
+            fielding_position = fielders[0] if fielders else 0
+            fielders_list = fielders
+        
+        if result == 'S':  # Single
+            return f"S{fielding_position}/{hit_type}{fielding_position}"
+        elif result == 'D':  # Double
+            return f"D{fielding_position}/{hit_type}{fielding_position}"
+        elif result == 'T':  # Triple
+            return f"T{fielding_position}/{hit_type}{fielding_position}"
+        elif result == 'HR':  # Home run
+            return f"HR/{hit_type}{fielding_position}"
+        elif result == 'E':  # Error
+            return f"E{fielding_position}/{hit_type}{fielding_position}"
+        elif result == 'FC':  # Fielder's choice
+            return f"FC{fielding_position}/{hit_type}{fielding_position}"
+        elif result == 'SF':  # Sacrifice fly
+            return f"SF{fielding_position}/{hit_type}{fielding_position}"
+        elif result == 'SH':  # Sacrifice bunt
+            return f"SH{fielding_position}/{hit_type}{fielding_position}"
+        elif result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
+            # Handle out types - hit_type parameter is actually out_type for these
+            out_type = hit_type
+            if len(fielders_list) == 1:
+                # Single fielder
+                if result == 'OUT':
+                    return f"{out_type}{fielding_position}"
+                elif result == 'GDP':
+                    return f"{out_type}{fielding_position}/GDP/{out_type}{fielding_position}"
+                elif result == 'LDP':
+                    return f"{out_type}{fielding_position}/LDP/{out_type}{fielding_position}"
+                elif result == 'TP':
+                    return f"{out_type}{fielding_position}/TP/{out_type}{fielding_position}"
+                elif result == 'FO':
+                    return f"{out_type}{fielding_position}/FO/{out_type}{fielding_position}"
+                elif result == 'UO':
+                    return f"{out_type}{fielding_position}/UO/{out_type}{fielding_position}"
+            else:
+                # Multiple fielders - create fielder string
+                fielder_string = ''.join(str(f) for f in fielders_list)
+                if result == 'OUT':
+                    return f"{fielder_string}/{out_type}{fielding_position}"
+                elif result == 'GDP':
+                    return f"{fielder_string}/GDP/{out_type}{fielding_position}"
+                elif result == 'LDP':
+                    return f"{fielder_string}/LDP/{out_type}{fielding_position}"
+                elif result == 'TP':
+                    return f"{fielder_string}/TP/{out_type}{fielding_position}"
+                elif result == 'FO':
+                    return f"{fielder_string}/FO/{out_type}{fielding_position}"
+                elif result == 'UO':
+                    return f"{fielder_string}/UO/{out_type}{fielding_position}"
+        else:
+            # For other results, use the basic format
+            return self._generate_retrosheet_play_description(result, fielding_position)
+
+    def _reset_detail_mode(self) -> None:
+        """Reset detail mode state."""
+        self.detail_mode_result = None
+        self.detail_mode_hit_type = None
+        self.detail_mode_out_type = None
+        self.detail_mode_fielders = []
+        self.detail_mode_runner_outs = []
+        self.modifier_selection_active = False
+        self.selected_modifier_group = None
+        self.selected_modifiers = []
+        self.modifier_param_request = None
+        self.current_modifier_options_keymap = {}
+        self.modifiers_live_applied = False
+
+    def _start_modifier_detail_mode(self) -> None:
+        """Begin the additional details selection UI inside detail mode."""
+        self.modifier_selection_active = True
+        self.selected_modifier_group = None
+        self.selected_modifiers = []
+        self.modifier_param_request = None
+        self.current_modifier_options_keymap = {}
+        self.modifiers_live_applied = True  # enable live append behavior
+
+    def _handle_modifier_mode_input(self, key: str) -> None:
+        """Handle input when selecting additional (auxiliary) play details."""
+        # Finish and apply modifiers
+        if key in ['\r', '\n']:
+            self._apply_modifiers_to_current_play()
+            # Return to pitch mode after applying modifiers
+            self.mode = 'pitch'
+            self._reset_detail_mode()
+            return
+
+        # Back to group selection
+        if key == '0':
+            self.selected_modifier_group = None
+            self.modifier_param_request = None
+            self.current_modifier_options_keymap = {}
+            return
+
+        # If awaiting a parameter for a modifier
+        if self.modifier_param_request:
+            code = self.modifier_param_request['code']
+            if self.modifier_param_request['type'] == 'fielder' and key in self.fielding_position_hotkeys:
+                suffix = str(self.fielding_position_hotkeys[key])
+                resolved = code.replace('$', suffix)
+                self._append_modifier_to_current_play(resolved)
+                self.modifier_param_request = None
+            elif self.modifier_param_request['type'] == 'base' and key in ['1', '2', '3', '4']:
+                resolved = code.replace('%', key)
+                self._append_modifier_to_current_play(resolved)
+                self.modifier_param_request = None
+            return
+
+        # Choose group
+        if self.selected_modifier_group is None:
+            if key in self.modifier_groups:
+                self.selected_modifier_group = key
+            return
+
+        # Choose option within group
+        if key in self.current_modifier_options_keymap:
+            code = self.current_modifier_options_keymap[key]
+            # Codes that require parameter
+            if code == 'E$':
+                self.modifier_param_request = { 'code': 'E$', 'type': 'fielder' }
+            elif code == 'R$':
+                self.modifier_param_request = { 'code': 'R$', 'type': 'fielder' }
+            elif code == 'TH%':
+                self.modifier_param_request = { 'code': 'TH%', 'type': 'base' }
+            else:
+                self._append_modifier_to_current_play(code)
+        # Any other key ignored
+
+    def _apply_modifiers_to_current_play(self) -> None:
+        """Append selected modifiers to the current play description and save."""
+        if self.modifiers_live_applied or not self.selected_modifiers:
+            return
+        current_game = self.event_file.games[self.current_game_index]
+        current_play = current_game.plays[self.current_play_index]
+        current_play.play_description = (current_play.play_description or '') + self._format_modifiers_suffix()
+        current_play.edited = True
+        self._save_current_state()
+
+    def _append_modifier_to_current_play(self, code: str) -> None:
+        """Append a single modifier code immediately to the current play and record it for UI."""
+        self.selected_modifiers.append(code)
+        current_game = self.event_file.games[self.current_game_index]
+        current_play = current_game.plays[self.current_play_index]
+        # Ensure there is a primary result
+        if not current_play.play_description:
+            return
+        # Avoid duplicate slashes
+        if not current_play.play_description.endswith('/'):
+            current_play.play_description += f"/{code}"
+        else:
+            current_play.play_description += code
+        current_play.edited = True
+        self._save_current_state()
+
+    def _format_modifiers_suffix(self) -> str:
+        """Format the suffix string for selected modifiers in Retrosheet style."""
+        # Retrosheet modifiers typically follow with "/" joining tokens
+        # Ensure codes are space-free and already replacement-handled
+        return "/" + "/".join(self.selected_modifiers)
+
+    def _add_modifier_options_wrapped(self, controls_text: Text, codes: list) -> None:
+        """Render modifier options on wrapped rows within a max width, building keymap a..z."""
+        # Reset keymap for current group view
+        self.current_modifier_options_keymap = {}
+
+        max_width = min(self.console.width, 120)
+        available_width = max_width - 2  # account for indentation
+
+        current_row = []
+        current_row_width = 0
+
+        letter_ord = ord('a')
+        for code in codes:
+            key_char = chr(letter_ord)
+            self.current_modifier_options_keymap[key_char] = code
+            desc = self.modifier_descriptions.get(code, code)
+            entry = f"[{key_char.upper()}] {code} - {desc}"
+
+            entry_width = len(entry)
+            spacing_width = 2 if current_row else 0
+            total_entry_width = entry_width + spacing_width
+
+            if current_row_width + total_entry_width <= available_width:
+                current_row.append(entry)
+                current_row_width += total_entry_width
+            else:
+                if current_row:
+                    controls_text.append("  " + "  ".join(current_row) + "\n")
+                current_row = [entry]
+                current_row_width = entry_width
+
+            letter_ord += 1
+
+        if current_row:
+            controls_text.append("  " + "  ".join(current_row) + "\n")
+
+    def _add_modifier_group_controls_wrapped(self, controls_text: Text) -> None:
+        """Render the modifier group list wrapped across lines within a max width."""
+        max_width = min(self.console.width, 120)
+        available_width = max_width - 2
+
+        # Build entries like "[B] Ball Types"
+        entries = []
+        for key, (name, _) in self.modifier_groups.items():
+            entries.append(f"[{str(key).upper()}] {name}")
+
+        current_row = []
+        current_row_width = 0
+
+        for entry in entries:
+            entry_width = len(entry)
+            spacing_width = 2 if current_row else 0
+            total_entry_width = entry_width + spacing_width
+
+            if current_row_width + total_entry_width <= available_width:
+                current_row.append(entry)
+                current_row_width += total_entry_width
+            else:
+                if current_row:
+                    controls_text.append("  " + "  ".join(current_row) + "\n")
+                current_row = [entry]
+                current_row_width = entry_width
+
+        if current_row:
+            controls_text.append("  " + "  ".join(current_row) + "\n")
+
 
 def run_editor(event_file_path: Path, output_dir: Path) -> None:
     """Run the interactive editor."""
     try:
+        # Validate shortcuts before starting the editor
+        validate_shortcuts()
+        
         event_file = parse_event_file(event_file_path)
         editor = RetrosheetEditor(event_file, output_dir)
         editor.run()

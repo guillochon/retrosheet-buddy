@@ -8,7 +8,7 @@ from retrosheet_buddy.editor import RetrosheetEditor
 from retrosheet_buddy.models import EventFile, Game, GameInfo, Play
 
 
-def test_auto_walk():
+def test_auto_walk(tmp_path):
     """Test automatic walk functionality."""
     # Create test game with a play that will reach 4 balls
     test_game = Game(
@@ -22,7 +22,7 @@ def test_auto_walk():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Start with first play
     editor.current_play_index = 0
@@ -40,7 +40,7 @@ def test_auto_walk():
     assert editor.current_play_index == 1, f"Expected to move to next batter, but still at {editor.current_play_index}"
 
 
-def test_auto_strikeout():
+def test_auto_strikeout(tmp_path):
     """Test automatic strikeout functionality."""
     # Create test game with a play that will reach 3 strikes
     test_game = Game(
@@ -54,7 +54,7 @@ def test_auto_strikeout():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Start with first play
     editor.current_play_index = 0
@@ -72,7 +72,7 @@ def test_auto_strikeout():
     assert editor.current_play_index == 1, f"Expected to move to next batter, but still at {editor.current_play_index}"
 
 
-def test_auto_strikeout_with_swinging():
+def test_auto_strikeout_with_swinging(tmp_path):
     """Test automatic strikeout with swinging strike."""
     # Create test game with a play that will reach 3 strikes
     test_game = Game(
@@ -86,16 +86,16 @@ def test_auto_strikeout_with_swinging():
     )
     
     test_event_file = EventFile(games=[test_game])
-    editor = RetrosheetEditor(test_event_file, Path("test_outputs"))
+    editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Start with first play
     editor.current_play_index = 0
     current_play = test_game.plays[0]
     
     # Add 2 called strikes and 1 swinging strike
-    editor._add_pitch('S')  # Called strike
-    editor._add_pitch('S')  # Called strike
-    editor._add_pitch('W')  # Swinging strike
+    editor._add_pitch('C')  # Called strike
+    editor._add_pitch('C')  # Called strike
+    editor._add_pitch('S')  # Swinging strike
     
     # Check if automatic strikeout was triggered
     assert current_play.play_description == "K", f"Expected K, got {current_play.play_description}"

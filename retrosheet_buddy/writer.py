@@ -26,27 +26,34 @@ class RetrosheetWriter:
         f.write("version,1\n")
         
         # Write info records
-        if game.info.away_team:
-            f.write(f'info,visteam,"{game.info.away_team}"\n')
-        if game.info.home_team:
-            f.write(f'info,hometeam,"{game.info.home_team}"\n')
-        if game.info.date:
-            f.write(f'info,date,"{game.info.date}"\n')
-        if game.info.temperature:
-            f.write(f'info,temp,"{game.info.temperature}"\n')
-        if game.info.attendance:
-            f.write(f'info,attendance,"{game.info.attendance}"\n')
-        
-        # Write umpire info
-        for i, umpire in enumerate(game.info.umpires):
-            if i == 0:
-                f.write(f'info,umphome,"{umpire}"\n')
-            elif i == 1:
-                f.write(f'info,ump1b,"{umpire}"\n')
-            elif i == 2:
-                f.write(f'info,ump2b,"{umpire}"\n')
-            elif i == 3:
-                f.write(f'info,ump3b,"{umpire}"\n')
+        if game.info.info_lines:
+            # Prefer verbatim original info lines to preserve unknown keys and order
+            for key, value in game.info.info_lines:
+                # Only quote if value contains comma or spaces? Retrosheet allows unquoted; keep original format simple
+                f.write(f'info,{key},"{value}"\n')
+        else:
+            # Fallback to structured fields
+            if game.info.away_team:
+                f.write(f'info,visteam,"{game.info.away_team}"\n')
+            if game.info.home_team:
+                f.write(f'info,hometeam,"{game.info.home_team}"\n')
+            if game.info.date:
+                f.write(f'info,date,"{game.info.date}"\n')
+            if game.info.temperature:
+                f.write(f'info,temp,"{game.info.temperature}"\n')
+            if game.info.attendance:
+                f.write(f'info,attendance,"{game.info.attendance}"\n')
+            
+            # Write umpire info
+            for i, umpire in enumerate(game.info.umpires):
+                if i == 0:
+                    f.write(f'info,umphome,"{umpire}"\n')
+                elif i == 1:
+                    f.write(f'info,ump1b,"{umpire}"\n')
+                elif i == 2:
+                    f.write(f'info,ump2b,"{umpire}"\n')
+                elif i == 3:
+                    f.write(f'info,ump3b,"{umpire}"\n')
         
         # Write start records
         for player in game.players:
@@ -54,7 +61,13 @@ class RetrosheetWriter:
         
         # Write play records
         for play in game.plays:
-            f.write(f'play,{play.inning},{play.team},{play.batter_id},{play.count},{play.pitches},{play.play_description}\n')
+            # If the original file had unknown count ("??") but the play was edited AND concluded
+            # (has a play_description), write the calculated/current count. Otherwise, preserve original.
+            if play.original_count == "??" and play.edited and bool(play.play_description):
+                count_to_write = play.count
+            else:
+                count_to_write = play.original_count if play.original_count is not None else play.count
+            f.write(f'play,{play.inning},{play.team},{play.batter_id},{count_to_write},{play.pitches},{play.play_description}\n')
         
         # Write comments
         for comment in game.comments:
