@@ -1,5 +1,7 @@
 # Retrosheet Buddy
 
+[![CI](https://github.com/guillochon/retrosheet-buddy/actions/workflows/ci.yml/badge.svg)](https://github.com/guillochon/retrosheet-buddy/actions/workflows/ci.yml)
+
 An interactive command line editor for Retrosheet event files. This tool allows you to edit play-by-play data from baseball games using single keystroke commands.
 
 ## Features
