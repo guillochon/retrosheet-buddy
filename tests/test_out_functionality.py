@@ -120,7 +120,7 @@ def test_out_detail_mode_workflow(test_event_file, tmp_path):
     editor._save_detail_mode_result()
     
     # Should now be saved but remain in detail mode (no auto-advance)
-    assert current_play.play_description == 'G6'
+    assert current_play.play_description == '6/G'
     assert editor.mode == 'detail'
 
 
@@ -156,7 +156,7 @@ def test_gdp_detail_mode_workflow(test_event_file, tmp_path):
     editor._save_detail_mode_result()
     
     # Should now be saved but remain in detail mode (no auto-advance)
-    assert current_play.play_description == 'G6/GDP/G6'
+    assert current_play.play_description == '6/G/GDP'
     assert editor.mode == 'detail'
 
 
@@ -192,7 +192,7 @@ def test_ldp_detail_mode_workflow(test_event_file, tmp_path):
     editor._save_detail_mode_result()
     
     # Should now be saved but remain in detail mode (no auto-advance)
-    assert current_play.play_description == 'L8/LDP/L8'
+    assert current_play.play_description == '8/L/LDP'
     assert editor.mode == 'detail'
 
 
@@ -285,7 +285,7 @@ def test_multiple_fielders_sequential_selection(test_event_file, tmp_path):
     
     # Should now be saved with all fielders and remain in detail mode
     current_play = editor.event_file.games[0].plays[0]
-    assert current_play.play_description == '643/GDP/G6'  # 6-4-3 double play
+    assert current_play.play_description == '643/G/GDP'  # 6-4-3 double play
     assert editor.mode == 'detail'
 
 

@@ -28,7 +28,7 @@ def test_navigation_keys_have_exclusive_access(tmp_path):
     editor = RetrosheetEditor(test_event_file, tmp_path)
     
     # Define navigation keys that must be exclusive
-    navigation_keys = {'q', 'left', 'right', 'tab', 'x', '\r', '\n'}
+    navigation_keys = {'q', 'left', 'right', 'tab', 'x', '-', '\r', '\n'}
     
     # Check pitch mode doesn't use navigation keys
     pitch_keys = set(editor.pitch_hotkeys.keys())

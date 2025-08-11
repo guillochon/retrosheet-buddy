@@ -186,6 +186,41 @@ def test_play_result_functionality(tmp_path):
     assert test_game.plays[0].play_description == 'HR/F7', "Should set home run in Retrosheet format"
 
 
+def test_clear_in_pitch_and_play_modes(tmp_path):
+    """Test context-sensitive clear functionality with '-' key mapping behavior."""
+    # Create test data
+    test_game = Game(
+        game_id="TESTCLR",
+        info=GameInfo(date="2024-01-01", home_team="HOME", away_team="AWAY"),
+        players=[],
+        plays=[Play(inning=1, team=0, batter_id="TEST1", count="00", pitches="", play_description="")]
+    )
+
+    test_event_file = EventFile(games=[test_game])
+    editor = RetrosheetEditor(test_event_file, tmp_path)
+
+    # Start in pitch mode, add some pitches
+    assert editor.mode == 'pitch'
+    editor._add_pitch('B')
+    editor._add_pitch('S')
+    assert test_game.plays[0].pitches == 'BS'
+    assert test_game.plays[0].count == '11'
+
+    # Clear pitches
+    editor._clear_pitches()
+    assert test_game.plays[0].pitches == ''
+    assert test_game.plays[0].count == '00'
+
+    # Switch to play mode and set a result
+    editor.mode = 'play'
+    editor._set_play_result('W')
+    assert test_game.plays[0].play_description == 'W'
+
+    # Clear play result
+    editor._clear_play_result()
+    assert test_game.plays[0].play_description == ''
+
+
 def test_undo_functionality(tmp_path):
     """Test undo functionality."""
     # Create test data

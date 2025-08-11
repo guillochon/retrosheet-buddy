@@ -36,6 +36,7 @@ def validate_shortcuts() -> None:
         'right': 'Next play',
         'tab': 'Switch modes',
         'x': 'Undo last action',
+        '-': 'Clear (pitches in PITCH mode, result in PLAY mode)',
         '\r': 'Enter key',
         '\n': 'Enter key',
     }
@@ -459,6 +460,11 @@ class RetrosheetEditor:
                         self._reset_detail_mode()
                 elif key == 'x':  # Undo last action
                     self._undo_last_action()
+                elif key == '-':  # Clear (context-sensitive)
+                    if self.mode == 'pitch':
+                        self._clear_pitches()
+                    elif self.mode == 'play':
+                        self._clear_play_result()
                 elif self.mode == 'pitch' and key in self.pitch_hotkeys:
                     self._add_pitch(self.pitch_hotkeys[key])
                 elif self.mode == 'play' and key in self.play_hotkeys:
@@ -698,6 +704,12 @@ class RetrosheetEditor:
             "[Q] Quit",
             "[X] Undo last action"
         ]
+
+        # Context-sensitive clear hint
+        if self.mode == 'pitch':
+            nav_items.append("[-] Clear pitches")
+        elif self.mode == 'play':
+            nav_items.append("[-] Clear result")
         
         current_row = []
         current_row_width = 0
@@ -1090,6 +1102,44 @@ class RetrosheetEditor:
         self.console.print("Undo completed", style="green")
         self._save_current_state()
 
+    def _clear_pitches(self) -> None:
+        """Clear the full pitch history for the current at-bat and reset count.
+
+        Does not modify the play result. Records an undo snapshot and saves state.
+        """
+        current_game = self.event_file.games[self.current_game_index]
+        current_play = current_game.plays[self.current_play_index]
+
+        # Save state before clearing
+        self._save_state_for_undo()
+
+        current_play.pitches = ""
+        current_play.count = self._calculate_count(current_play.pitches)
+        current_play.edited = True
+
+        self.console.print("Cleared pitches", style="green")
+        self._save_current_state()
+
+    def _clear_play_result(self) -> None:
+        """Clear the result of the current play.
+
+        Does not modify pitch history or count. Records an undo snapshot and saves state.
+        """
+        current_game = self.event_file.games[self.current_game_index]
+        current_play = current_game.plays[self.current_play_index]
+
+        # Save state before clearing
+        self._save_state_for_undo()
+
+        current_play.play_description = ""
+        current_play.edited = True
+
+        # If we were in detail mode workflow, ensure state is clean
+        self._reset_detail_mode()
+
+        self.console.print("Cleared play result", style="green")
+        self._save_current_state()
+
     def _enter_detail_mode(self, result: str) -> None:
         """Enter detail mode for specifying hit type and fielding position."""
         self.detail_mode_result = result
@@ -1145,9 +1195,11 @@ class RetrosheetEditor:
                 current_play.play_description = play_description
                 current_play.edited = True
                 self._save_current_state()
-                
-                # Stay in detail mode after saving out results to allow further details
-                # Do not advance to next play automatically
+
+                # After saving an out with fielders, automatically enter the
+                # additional details selection inside detail mode so the user
+                # can add modifiers immediately. Remain in detail mode.
+                self._start_modifier_detail_mode()
             else:
                 self.console.print("Please complete all detail selections", style="yellow")
         else:
@@ -1212,37 +1264,21 @@ class RetrosheetEditor:
         elif result == 'SH':  # Sacrifice bunt
             return f"SH{fielding_position}/{hit_type}{fielding_position}"
         elif result in ['OUT', 'GDP', 'LDP', 'TP', 'FO', 'UO']:
-            # Handle out types - hit_type parameter is actually out_type for these
-            out_type = hit_type
-            if len(fielders_list) == 1:
-                # Single fielder
-                if result == 'OUT':
-                    return f"{out_type}{fielding_position}"
-                elif result == 'GDP':
-                    return f"{out_type}{fielding_position}/GDP/{out_type}{fielding_position}"
-                elif result == 'LDP':
-                    return f"{out_type}{fielding_position}/LDP/{out_type}{fielding_position}"
-                elif result == 'TP':
-                    return f"{out_type}{fielding_position}/TP/{out_type}{fielding_position}"
-                elif result == 'FO':
-                    return f"{out_type}{fielding_position}/FO/{out_type}{fielding_position}"
-                elif result == 'UO':
-                    return f"{out_type}{fielding_position}/UO/{out_type}{fielding_position}"
-            else:
-                # Multiple fielders - create fielder string
-                fielder_string = ''.join(str(f) for f in fielders_list)
-                if result == 'OUT':
-                    return f"{fielder_string}/{out_type}{fielding_position}"
-                elif result == 'GDP':
-                    return f"{fielder_string}/GDP/{out_type}{fielding_position}"
-                elif result == 'LDP':
-                    return f"{fielder_string}/LDP/{out_type}{fielding_position}"
-                elif result == 'TP':
-                    return f"{fielder_string}/TP/{out_type}{fielding_position}"
-                elif result == 'FO':
-                    return f"{fielder_string}/FO/{out_type}{fielding_position}"
-                elif result == 'UO':
-                    return f"{fielder_string}/UO/{out_type}{fielding_position}"
+            # New formatting for outs: fielders first, then out type(s)
+            out_type = hit_type  # may be base (G/L/F/P/B/SF/SH) or special (FO/UO/GDP/LDP/TP)
+            fielder_string = ''.join(str(f) for f in fielders_list)
+
+            tokens = [fielder_string] if fielder_string else [str(fielding_position)]
+
+            # Always include the selected out_type if provided
+            if out_type:
+                tokens.append(out_type)
+
+            # Append the specific result modifier if applicable and not duplicated
+            if result in ['FO', 'UO', 'GDP', 'LDP', 'TP'] and result != out_type:
+                tokens.append(result)
+
+            return "/".join(tokens)
         else:
             # For other results, use the basic format
             return self._generate_retrosheet_play_description(result, fielding_position)

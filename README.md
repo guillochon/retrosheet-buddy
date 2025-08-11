@@ -61,6 +61,7 @@ These work in both modes:
 - **S** or **↓**: Next game
 - **Q**: Quit
 - **X**: Undo last action
+- **-**: Clear (pitches in PITCH mode; result in PLAY mode)
 
 #### Pitch Mode Keystrokes
 
@@ -184,14 +185,14 @@ Here's how to record a typical at-bat:
 2. Automatically enters **DETAIL MODE**
 3. Press **G** to specify it's a ground out
 4. Press **6** to specify it was fielded by the shortstop
-5. Automatically saves the result as "G6" (ground out to shortstop), progresses to the next batter, and returns to pitch mode
+5. Automatically saves the result as "6/G" (fielder then out type), progresses to the next batter, and returns to pitch mode
 
 **For double plays**:
 1. In **PLAY MODE**, press **X** to select "Grounded into double play"
 2. Automatically enters **DETAIL MODE**
 3. Press **G** to specify it's a ground out
 4. Press **6** to specify it was fielded by the shortstop
-5. Automatically saves the result as "G6/GDP/G6" (grounded into double play, fielded by shortstop), progresses to the next batter, and returns to pitch mode
+5. Automatically saves the result as "6/G/GDP" (fielder then out type and DP modifier), progresses to the next batter, and returns to pitch mode
 
 **For multi-fielder plays**:
 1. In **PLAY MODE**, press **X** to select "Grounded into double play"
@@ -200,7 +201,7 @@ Here's how to record a typical at-bat:
 4. Press **6** to specify the shortstop fielded it
 5. Press **4** to specify the second baseman received the throw
 6. Press **3** to specify the first baseman received the final throw
-7. Automatically saves the result as "643/G6/GDP/G6" (6-4-3 double play, ground out to shortstop), progresses to the next batter, and returns to pitch mode
+7. Automatically saves the result as "643/G/GDP" (fielders first, then out type and DP), progresses to the next batter, and returns to pitch mode
 
 **Note**: Use **X** to undo any mistake, and **TAB** to cycle through modes (PITCH → PLAY → DETAIL → PITCH).
 
