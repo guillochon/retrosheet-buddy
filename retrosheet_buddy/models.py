@@ -41,6 +41,24 @@ class Play(BaseModel):
     edited: bool = False  # True if the play has been edited in the editor
 
 
+class Substitution(BaseModel):
+    """A substitution record that occurs during the game timeline."""
+
+    player_id: str
+    name: str
+    team: int  # 0 for visiting, 1 for home
+    batting_order: int  # 1-9, 0 for DH
+    fielding_position: int  # 1-9, 10 for DH, 11 for PH, 12 for PR
+    insertion_play_index: int  # Index in plays list before which this sub appears
+
+
+class DataRecord(BaseModel):
+    """Generic data record (e.g., earned runs per pitcher)."""
+
+    record_type: str  # e.g., "er"
+    values: List[str]  # remaining comma-separated values
+
+
 class Game(BaseModel):
     """Complete game data."""
 
@@ -49,6 +67,8 @@ class Game(BaseModel):
     players: List[Player] = Field(default_factory=list)
     plays: List[Play] = Field(default_factory=list)
     comments: List[str] = Field(default_factory=list)
+    substitutions: List[Substitution] = Field(default_factory=list)
+    data_records: List[DataRecord] = Field(default_factory=list)
 
 
 class EventFile(BaseModel):

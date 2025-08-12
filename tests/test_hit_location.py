@@ -22,7 +22,7 @@ def _make_editor_with_play(tmp_path: Path) -> RetrosheetEditor:
 
 
 def _save_single_to_shortstop(editor: RetrosheetEditor) -> None:
-    # Enter detail mode and record a single, grounder to shortstop (S6/G6)
+    # Enter detail mode and record a single, grounder to shortstop (S6/G)
     editor._enter_detail_mode("S")
     editor._handle_detail_mode_input("g")  # grounder
     editor._handle_detail_mode_input("6")  # shortstop

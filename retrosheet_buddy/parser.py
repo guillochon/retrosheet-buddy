@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import List, Optional
 
-from .models import EventFile, Game, GameInfo, Play, Player
+from .models import DataRecord, EventFile, Game, GameInfo, Play, Player, Substitution
 
 
 class RetrosheetParser:
@@ -73,6 +73,12 @@ class RetrosheetParser:
 
         elif line.startswith("com,"):
             self._parse_comment(line)
+
+        elif line.startswith("sub,"):
+            self._parse_sub(line)
+
+        elif line.startswith("data,"):
+            self._parse_data(line)
 
     def _parse_info(self, line: str) -> None:
         """Parse an info record."""
@@ -158,6 +164,40 @@ class RetrosheetParser:
 
         comment = line[4:].strip('"')  # Remove 'com,' and quotes
         self.current_game.comments.append(comment)
+
+    def _parse_sub(self, line: str) -> None:
+        """Parse a substitution record, preserving timeline position relative to plays."""
+        if not self.current_game:
+            return
+
+        parts = line.split(",")
+        if len(parts) < 6:
+            return
+
+        substitution = Substitution(
+            player_id=parts[1],
+            name=parts[2].strip('"'),
+            team=int(parts[3]),
+            batting_order=int(parts[4]),
+            fielding_position=int(parts[5]),
+            insertion_play_index=len(self.current_game.plays),
+        )
+        self.current_game.substitutions.append(substitution)
+
+    def _parse_data(self, line: str) -> None:
+        """Parse a generic data record (stored for end-of-game output)."""
+        if not self.current_game:
+            return
+
+        # Example: data,er,krukm001,0
+        parts = line.split(",")
+        if len(parts) < 2:
+            return
+
+        record_type = parts[1]
+        values = parts[2:] if len(parts) > 2 else []
+        data_record = DataRecord(record_type=record_type, values=values)
+        self.current_game.data_records.append(data_record)
 
 
 def parse_event_file(file_path: Path) -> EventFile:

@@ -79,7 +79,7 @@ def test_detail_mode_fielding_position_selection(tmp_path):
     editor._handle_detail_mode_input("6")  # Shortstop
 
     # Verify that the play was saved and we're now in Hit Location builder within detail mode
-    assert test_game.plays[0].play_description == "S6/G6"
+    assert test_game.plays[0].play_description == "S6/G"
     assert editor.mode == "detail"
     assert editor.modifier_selection_active is True
     assert editor.selected_modifier_group == "h"
@@ -111,7 +111,7 @@ def test_detail_mode_complete_workflow(tmp_path):
     editor._handle_detail_mode_input("6")  # Shortstop
 
     # Check that the play description was set correctly and we're now in Hit Location builder
-    assert test_game.plays[0].play_description == "S6/G6"
+    assert test_game.plays[0].play_description == "S6/G"
     assert editor.mode == "detail"
     assert editor.modifier_selection_active is True
     assert editor.selected_modifier_group == "h"
@@ -124,21 +124,21 @@ def test_generate_detailed_play_description(tmp_path):
 
     # Test various combinations
     test_cases = [
-        ("S", "G", 6, "S6/G6"),  # Single, grounder, shortstop
+        ("S", "G", 6, "S6/G"),  # Single, grounder, shortstop
         ("S", "G", 0, "S/G"),  # Single, grounder, no position
-        ("D", "L", 7, "D7/L7"),  # Double, line drive, left field
+        ("D", "L", 7, "D7/L"),  # Double, line drive, left field
         ("D", "L", 0, "D/L"),  # Double, line drive, no position
-        ("T", "F", 8, "T8/F8"),  # Triple, fly ball, center field
+        ("T", "F", 8, "T8/F"),  # Triple, fly ball, center field
         ("T", "F", 0, "T/F"),  # Triple, fly ball, no position
-        ("HR", "F", 7, "HR/F7"),  # Home run, fly ball, left field
+        ("HR", "F", 7, "HR/F"),  # Home run, fly ball, left field
         ("HR", "F", 0, "HR/F"),  # Home run, fly ball, no position
-        ("E", "G", 6, "E6/G6"),  # Error, grounder, shortstop
+        ("E", "G", 6, "E6/G"),  # Error, grounder, shortstop
         ("E", "G", 0, "E/G"),  # Error, grounder, no position
-        ("FC", "G", 4, "FC4/G4"),  # Fielder's choice, grounder, second base
+        ("FC", "G", 4, "FC4/G"),  # Fielder's choice, grounder, second base
         ("FC", "G", 0, "FC/G"),  # Fielder's choice, no position
-        ("SF", "F", 8, "SF8/F8"),  # Sacrifice fly, fly ball, center field
+        ("SF", "F", 8, "SF8/F"),  # Sacrifice fly, fly ball, center field
         ("SF", "F", 0, "SF/F"),  # Sacrifice fly, no position
-        ("SH", "B", 1, "SH1/B1"),  # Sacrifice bunt, bunt, pitcher
+        ("SH", "B", 1, "SH1/B"),  # Sacrifice bunt, bunt, pitcher
         ("SH", "B", 0, "SH/B"),  # Sacrifice bunt, no position
     ]
 
@@ -278,7 +278,7 @@ def test_detail_mode_integration(tmp_path):
 
     # Should remain in detail mode with Hit Location builder active
     assert editor.mode == "detail"
-    assert test_game.plays[0].play_description == "S6/G6"
+    assert test_game.plays[0].play_description == "S6/G"
     assert editor.modifier_selection_active is True
     assert editor.selected_modifier_group == "h"
 
@@ -362,4 +362,4 @@ def test_detail_mode_automatic_progression(tmp_path):
 
     # Verify the play description was saved correctly
     current_play = editor.event_file.games[0].plays[0]
-    assert current_play.play_description == "S6/G6"
+    assert current_play.play_description == "S6/G"

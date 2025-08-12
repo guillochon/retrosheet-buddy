@@ -61,8 +61,19 @@ class RetrosheetWriter:
                 f'start,{player.player_id},"{player.name}",{player.team},{player.batting_order},{player.fielding_position}\n'
             )
 
-        # Write play records
-        for play in game.plays:
+        # Build substitution index mapping: insertion index -> list of subs
+        substitutions_by_index = {}
+        for sub in getattr(game, "substitutions", []):
+            substitutions_by_index.setdefault(sub.insertion_play_index, []).append(sub)
+
+        # Write play records interleaving substitutions at recorded indices
+        for play_index, play in enumerate(game.plays):
+            # Write any substitutions that occurred before this play
+            for sub in substitutions_by_index.get(play_index, []):
+                f.write(
+                    f'sub,{sub.player_id},"{sub.name}",{sub.team},{sub.batting_order},{sub.fielding_position}\n'
+                )
+
             # If the original file had unknown count ("??") but the play was edited AND concluded
             # (has a play_description), write the calculated/current count. Otherwise, preserve original.
             if (
@@ -81,9 +92,28 @@ class RetrosheetWriter:
                 f"play,{play.inning},{play.team},{play.batter_id},{count_to_write},{play.pitches},{play.play_description}\n"
             )
 
+        # Write any substitutions that occur after the final play
+        for sub in substitutions_by_index.get(len(game.plays), []):
+            f.write(
+                f'sub,{sub.player_id},"{sub.name}",{sub.team},{sub.batting_order},{sub.fielding_position}\n'
+            )
+
         # Write comments
         for comment in game.comments:
             f.write(f'com,"{comment}"\n')
+
+        # Write data records (e.g., earned runs), preserve order
+        for data_record in getattr(game, "data_records", []):
+            if data_record.values:
+                f.write(
+                    "data,"
+                    + data_record.record_type
+                    + ","
+                    + ",".join(data_record.values)
+                    + "\n"
+                )
+            else:
+                f.write("data," + data_record.record_type + "\n")
 
 
 def write_event_file(event_file: EventFile, output_path: Path) -> None:

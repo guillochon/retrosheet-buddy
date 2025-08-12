@@ -1057,15 +1057,15 @@ class RetrosheetEditor:
         """Generate proper Retrosheet play description format."""
         if result == "S":  # Single
             if fielding_position > 0:
-                return f"S{fielding_position}/G{fielding_position}"
+                return f"S{fielding_position}/G"
             return "S8/G6"  # Default to center field
         elif result == "D":  # Double
             if fielding_position > 0:
-                return f"D{fielding_position}/L{fielding_position}"
+                return f"D{fielding_position}/L"
             return "D7/L7"  # Default to left field
         elif result == "T":  # Triple
             if fielding_position > 0:
-                return f"T{fielding_position}/L{fielding_position}"
+                return f"T{fielding_position}/L"
             return "T8/L8"  # Default to center field
         elif result == "HR":  # Home run
             return "HR/F7"  # Over left field fence
@@ -1077,11 +1077,11 @@ class RetrosheetEditor:
             return "HP"
         elif result == "E":  # Error
             if fielding_position > 0:
-                return f"E{fielding_position}/G{fielding_position}"
+                return f"E{fielding_position}/G"
             return "E6/G6"  # Default to shortstop
         elif result == "FC":  # Fielder's choice
             if fielding_position > 0:
-                return f"FC{fielding_position}/G{fielding_position}"
+                return f"FC{fielding_position}/G"
             return "FC6/G6"
         elif result == "DP":  # Double play
             return "DP/G6"
@@ -1089,11 +1089,11 @@ class RetrosheetEditor:
             return "TP/G6"
         elif result == "SF":  # Sacrifice fly
             if fielding_position > 0:
-                return f"SF{fielding_position}/F{fielding_position}"
+                return f"SF{fielding_position}/F"
             return "SF8/F8"
         elif result == "SH":  # Sacrifice bunt
             if fielding_position > 0:
-                return f"SH{fielding_position}/G{fielding_position}"
+                return f"SH{fielding_position}/G"
             return "SH1/G1"
         elif result == "IW":  # Intentional walk
             return "IW"
@@ -1620,49 +1620,45 @@ class RetrosheetEditor:
             return (
                 f"S/{hit_type}"
                 if fielding_position <= 0
-                else f"S{fielding_position}/{hit_type}{fielding_position}"
+                else f"S{fielding_position}/{hit_type}"
             )
         elif result == "D":  # Double
             return (
                 f"D/{hit_type}"
                 if fielding_position <= 0
-                else f"D{fielding_position}/{hit_type}{fielding_position}"
+                else f"D{fielding_position}/{hit_type}"
             )
         elif result == "T":  # Triple
             return (
                 f"T/{hit_type}"
                 if fielding_position <= 0
-                else f"T{fielding_position}/{hit_type}{fielding_position}"
+                else f"T{fielding_position}/{hit_type}"
             )
         elif result == "HR":  # Home run
-            return (
-                f"HR/{hit_type}"
-                if fielding_position <= 0
-                else f"HR/{hit_type}{fielding_position}"
-            )
+            return f"HR/{hit_type}" if fielding_position <= 0 else f"HR/{hit_type}"
         elif result == "E":  # Error
             return (
                 f"E/{hit_type}"
                 if fielding_position <= 0
-                else f"E{fielding_position}/{hit_type}{fielding_position}"
+                else f"E{fielding_position}/{hit_type}"
             )
         elif result == "FC":  # Fielder's choice
             return (
                 f"FC/{hit_type}"
                 if fielding_position <= 0
-                else f"FC{fielding_position}/{hit_type}{fielding_position}"
+                else f"FC{fielding_position}/{hit_type}"
             )
         elif result == "SF":  # Sacrifice fly
             return (
                 f"SF/{hit_type}"
                 if fielding_position <= 0
-                else f"SF{fielding_position}/{hit_type}{fielding_position}"
+                else f"SF{fielding_position}/{hit_type}"
             )
         elif result == "SH":  # Sacrifice bunt
             return (
                 f"SH/{hit_type}"
                 if fielding_position <= 0
-                else f"SH{fielding_position}/{hit_type}{fielding_position}"
+                else f"SH{fielding_position}/{hit_type}"
             )
         elif result in ["OUT", "GDP", "LDP", "TP", "FO", "UO"]:
             # New formatting for outs: fielders first, then out type(s)

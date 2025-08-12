@@ -220,7 +220,7 @@ def test_regular_hit_detail_mode_unchanged(test_event_file, tmp_path):
 
     # Should now save and remain in detail mode with Hit Location builder active
     current_play = editor.event_file.games[0].plays[0]
-    assert current_play.play_description == "S6/G6"
+    assert current_play.play_description == "S6/G"
     assert editor.mode == "detail"
     assert editor.modifier_selection_active is True
     assert editor.selected_modifier_group == "h"

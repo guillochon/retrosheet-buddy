@@ -51,17 +51,20 @@ class TestRetrosheetCompliance:
 
         # Test various play results and their expected Retrosheet format
         test_cases = [
-            ("S", "S8/G6"),  # Single to center
-            ("D", "D7/L7"),  # Double to left
-            ("T", "T8/L8"),  # Triple to center
+            (
+                "S",
+                "S8/G6",
+            ),  # Single to center (default still includes fielder for baseline)
+            ("D", "D7/L7"),  # Double to left (default baseline)
+            ("T", "T8/L8"),  # Triple to center (default baseline)
             ("HR", "HR/F7"),  # Home run over left field
             ("K", "K"),  # Strikeout
             ("W", "W"),  # Walk
             ("HP", "HP"),  # Hit by pitch
-            ("E", "E6/G6"),  # Error by shortstop
-            ("FC", "FC6/G6"),  # Fielder's choice
-            ("SF", "SF8/F8"),  # Sacrifice fly to center
-            ("SH", "SH1/G1"),  # Sacrifice bunt to pitcher
+            ("E", "E6/G6"),  # Error by shortstop (default baseline)
+            ("FC", "FC6/G6"),  # Fielder's choice (default baseline)
+            ("SF", "SF8/F8"),  # Sacrifice fly to center (default baseline)
+            ("SH", "SH1/G1"),  # Sacrifice bunt to pitcher (default baseline)
         ]
 
         for result, expected in test_cases:
@@ -134,17 +137,18 @@ class TestRetrosheetCompliance:
         event_file = EventFile(games=[Game(game_id="TEST", info=GameInfo())])
         editor = RetrosheetEditor(event_file, Path("."))
 
-        # Test fielding position notation
+        # Test fielding position notation when explicitly specifying fielder for a hit
+        # Now only the result carries the fielder, not the hit type suffix
         test_cases = [
-            (1, "S1/G1"),  # Pitcher
-            (2, "S2/G2"),  # Catcher
-            (3, "S3/G3"),  # First base
-            (4, "S4/G4"),  # Second base
-            (5, "S5/G5"),  # Third base
-            (6, "S6/G6"),  # Shortstop
-            (7, "S7/G7"),  # Left field
-            (8, "S8/G8"),  # Center field
-            (9, "S9/G9"),  # Right field
+            (1, "S1/G"),  # Pitcher
+            (2, "S2/G"),  # Catcher
+            (3, "S3/G"),  # First base
+            (4, "S4/G"),  # Second base
+            (5, "S5/G"),  # Third base
+            (6, "S6/G"),  # Shortstop
+            (7, "S7/G"),  # Left field
+            (8, "S8/G"),  # Center field
+            (9, "S9/G"),  # Right field
         ]
 
         for position, expected in test_cases:
