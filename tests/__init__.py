@@ -1,1 +1,1 @@
-"""Tests for retrosheet-buddy.""" 
+"""Tests for retrosheet-buddy."""

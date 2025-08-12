@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class GameInfo(BaseModel):
     """Information about a game from info records."""
+
     date: Optional[str] = None
     home_team: Optional[str] = None
     away_team: Optional[str] = None
@@ -19,6 +20,7 @@ class GameInfo(BaseModel):
 
 class Player(BaseModel):
     """Player information from start/sub records."""
+
     player_id: str
     name: str
     team: int  # 0 for visiting, 1 for home
@@ -28,6 +30,7 @@ class Player(BaseModel):
 
 class Play(BaseModel):
     """A play record from the event file."""
+
     inning: int
     team: int  # 0 for visiting, 1 for home
     batter_id: str
@@ -40,6 +43,7 @@ class Play(BaseModel):
 
 class Game(BaseModel):
     """Complete game data."""
+
     game_id: str
     info: GameInfo
     players: List[Player] = Field(default_factory=list)
@@ -49,4 +53,5 @@ class Game(BaseModel):
 
 class EventFile(BaseModel):
     """Complete event file containing multiple games."""
-    games: List[Game] = Field(default_factory=list) 
+
+    games: List[Game] = Field(default_factory=list)

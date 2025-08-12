@@ -50,69 +50,84 @@ def test_keystroke_mappings(tmp_path):
         game_id="TEST001",
         info=GameInfo(date="2024-01-01", home_team="HOME", away_team="AWAY"),
         players=[],
-        plays=[Play(inning=1, team=0, batter_id="TEST1", count="00", pitches="", play_description="")]
+        plays=[
+            Play(
+                inning=1,
+                team=0,
+                batter_id="TEST1",
+                count="00",
+                pitches="",
+                play_description="",
+            )
+        ],
     )
-    
+
     test_event_file = EventFile(games=[test_game])
     editor = RetrosheetEditor(test_event_file, tmp_path)
-    
+
     # Test pitch keystrokes
     pitch_tests = [
-        ('b', 'B', 'Ball'),
-        ('s', 'S', 'Swinging strike'),
-        ('f', 'F', 'Foul'),
-        ('c', 'C', 'Called strike'),
-        ('t', 'T', 'Foul tip'),
-        ('m', 'M', 'Missed bunt'),
-        ('p', 'P', 'Pitchout'),
-        ('i', 'I', 'Intentional ball'),
-        ('h', 'H', 'Hit batter'),
-        ('v', 'V', 'Wild pitch'),
-        ('a', 'A', 'Passed ball'),
-        ('*', 'Q', 'Swinging on pitchout'),
-        ('r', 'R', 'Foul on pitchout'),
-        ('e', 'E', 'Foul bunt'),
-        ('n', 'N', 'No pitch'),
-        ('o', 'O', 'Foul on bunt'),
-        ('u', 'U', 'Unknown'),
+        ("b", "B", "Ball"),
+        ("s", "S", "Swinging strike"),
+        ("f", "F", "Foul"),
+        ("c", "C", "Called strike"),
+        ("t", "T", "Foul tip"),
+        ("m", "M", "Missed bunt"),
+        ("p", "P", "Pitchout"),
+        ("i", "I", "Intentional ball"),
+        ("h", "H", "Hit batter"),
+        ("v", "V", "Wild pitch"),
+        ("a", "A", "Passed ball"),
+        ("*", "Q", "Swinging on pitchout"),
+        ("r", "R", "Foul on pitchout"),
+        ("e", "E", "Foul bunt"),
+        ("n", "N", "No pitch"),
+        ("o", "O", "Foul on bunt"),
+        ("u", "U", "Unknown"),
     ]
-    
+
     for key, expected, description in pitch_tests:
         if key in editor.pitch_hotkeys:
             result = editor.pitch_hotkeys[key]
-            assert result == expected, f"Pitch key '{key}' ({description}) should be '{expected}', got '{result}'"
+            assert (
+                result == expected
+            ), f"Pitch key '{key}' ({description}) should be '{expected}', got '{result}'"
         else:
-            assert False, f"Pitch key '{key}' ({description}) not found in pitch_hotkeys"
-    
+            assert (
+                False
+            ), f"Pitch key '{key}' ({description}) not found in pitch_hotkeys"
+
     # Test play result keystrokes
     play_tests = [
-        ('1', 'S', 'Single'),
-        ('2', 'D', 'Double'),
-        ('3', 'T', 'Triple'),
-        ('4', 'HR', 'Home run'),
-        ('l', 'W', 'Walk'),
-        ('y', 'HP', 'Hit by pitch'),
-        ('z', 'E', 'Error'),
-        ('8', 'IW', 'Intentional walk'),
-        ('9', 'CI', 'Catcher interference'),
-        ('0', 'OA', 'Out advancing'),
-        (';', 'ND', 'No play'),
-        ('w', 'OUT', 'Out (opens wizard)'),
+        ("1", "S", "Single"),
+        ("2", "D", "Double"),
+        ("3", "T", "Triple"),
+        ("4", "HR", "Home run"),
+        ("l", "W", "Walk"),
+        ("y", "HP", "Hit by pitch"),
+        ("z", "E", "Error"),
+        ("8", "IW", "Intentional walk"),
+        ("9", "CI", "Catcher interference"),
+        ("0", "OA", "Out advancing"),
+        (";", "ND", "No play"),
+        ("w", "OUT", "Out (opens wizard)"),
     ]
-    
+
     for key, expected, description in play_tests:
         if key in editor.play_hotkeys:
             result = editor.play_hotkeys[key]
-            assert result == expected, f"Play key '{key}' ({description}) should be '{expected}', got '{result}'"
+            assert (
+                result == expected
+            ), f"Play key '{key}' ({description}) should be '{expected}', got '{result}'"
         else:
             assert False, f"Play key '{key}' ({description}) not found in play_hotkeys"
-    
+
     # Check for conflicts
     pitch_keys = set(editor.pitch_hotkeys.keys())
     play_keys = set(editor.play_hotkeys.keys())
     conflicts = pitch_keys & play_keys
     # Allow 'l' to overlap intentionally: 'l' is Called strike in pitch mode and Walk in play mode
-    allowed_overlap = {'l'}
+    allowed_overlap = {"l"}
     conflicts = {k for k in conflicts if k not in allowed_overlap}
     assert len(conflicts) == 0, f"Key conflicts found: {conflicts}"
 
@@ -124,19 +139,28 @@ def test_mode_functionality(tmp_path):
         game_id="TEST001",
         info=GameInfo(date="2024-01-01", home_team="HOME", away_team="AWAY"),
         players=[],
-        plays=[Play(inning=1, team=0, batter_id="TEST1", count="00", pitches="", play_description="")]
+        plays=[
+            Play(
+                inning=1,
+                team=0,
+                batter_id="TEST1",
+                count="00",
+                pitches="",
+                play_description="",
+            )
+        ],
     )
-    
+
     test_event_file = EventFile(games=[test_game])
     editor = RetrosheetEditor(test_event_file, tmp_path)
-    
+
     # Test initial mode
     assert editor.mode == "pitch", "Should start in pitch mode"
-    
+
     # Test mode switching
     editor.mode = "play" if editor.mode == "pitch" else "pitch"
     assert editor.mode == "play", "Should switch to play mode"
-    
+
     editor.mode = "play" if editor.mode == "pitch" else "pitch"
     assert editor.mode == "pitch", "Should switch back to pitch mode"
 
@@ -148,18 +172,27 @@ def test_pitch_functionality(tmp_path):
         game_id="TEST001",
         info=GameInfo(date="2024-01-01", home_team="HOME", away_team="AWAY"),
         players=[],
-        plays=[Play(inning=1, team=0, batter_id="TEST1", count="00", pitches="", play_description="")]
+        plays=[
+            Play(
+                inning=1,
+                team=0,
+                batter_id="TEST1",
+                count="00",
+                pitches="",
+                play_description="",
+            )
+        ],
     )
-    
+
     test_event_file = EventFile(games=[test_game])
     editor = RetrosheetEditor(test_event_file, tmp_path)
-    
+
     # Test adding pitches
-    editor._add_pitch('S')
-    assert test_game.plays[0].pitches == 'S', "Should add strike"
-    
-    editor._add_pitch('B')
-    assert test_game.plays[0].pitches == 'SB', "Should add ball after strike"
+    editor._add_pitch("S")
+    assert test_game.plays[0].pitches == "S", "Should add strike"
+
+    editor._add_pitch("B")
+    assert test_game.plays[0].pitches == "SB", "Should add ball after strike"
 
 
 def test_play_result_functionality(tmp_path):
@@ -169,18 +202,31 @@ def test_play_result_functionality(tmp_path):
         game_id="TEST001",
         info=GameInfo(date="2024-01-01", home_team="HOME", away_team="AWAY"),
         players=[],
-        plays=[Play(inning=1, team=0, batter_id="TEST1", count="00", pitches="", play_description="")]
+        plays=[
+            Play(
+                inning=1,
+                team=0,
+                batter_id="TEST1",
+                count="00",
+                pitches="",
+                play_description="",
+            )
+        ],
     )
-    
+
     test_event_file = EventFile(games=[test_game])
     editor = RetrosheetEditor(test_event_file, tmp_path)
-    
+
     # Test setting play results
-    editor._set_play_result('S')
-    assert test_game.plays[0].play_description == 'S8/G6', "Should set single in Retrosheet format"
-    
-    editor._set_play_result('HR')
-    assert test_game.plays[0].play_description == 'HR/F7', "Should set home run in Retrosheet format"
+    editor._set_play_result("S")
+    assert (
+        test_game.plays[0].play_description == "S8/G6"
+    ), "Should set single in Retrosheet format"
+
+    editor._set_play_result("HR")
+    assert (
+        test_game.plays[0].play_description == "HR/F7"
+    ), "Should set home run in Retrosheet format"
 
 
 def test_clear_in_pitch_and_play_modes(tmp_path):
@@ -190,32 +236,41 @@ def test_clear_in_pitch_and_play_modes(tmp_path):
         game_id="TESTCLR",
         info=GameInfo(date="2024-01-01", home_team="HOME", away_team="AWAY"),
         players=[],
-        plays=[Play(inning=1, team=0, batter_id="TEST1", count="00", pitches="", play_description="")]
+        plays=[
+            Play(
+                inning=1,
+                team=0,
+                batter_id="TEST1",
+                count="00",
+                pitches="",
+                play_description="",
+            )
+        ],
     )
 
     test_event_file = EventFile(games=[test_game])
     editor = RetrosheetEditor(test_event_file, tmp_path)
 
     # Start in pitch mode, add some pitches
-    assert editor.mode == 'pitch'
-    editor._add_pitch('B')
-    editor._add_pitch('S')
-    assert test_game.plays[0].pitches == 'BS'
-    assert test_game.plays[0].count == '11'
+    assert editor.mode == "pitch"
+    editor._add_pitch("B")
+    editor._add_pitch("S")
+    assert test_game.plays[0].pitches == "BS"
+    assert test_game.plays[0].count == "11"
 
     # Clear pitches
     editor._clear_pitches()
-    assert test_game.plays[0].pitches == ''
-    assert test_game.plays[0].count == '00'
+    assert test_game.plays[0].pitches == ""
+    assert test_game.plays[0].count == "00"
 
     # Switch to play mode and set a result
-    editor.mode = 'play'
-    editor._set_play_result('W')
-    assert test_game.plays[0].play_description == 'W'
+    editor.mode = "play"
+    editor._set_play_result("W")
+    assert test_game.plays[0].play_description == "W"
 
     # Clear play result
     editor._clear_play_result()
-    assert test_game.plays[0].play_description == ''
+    assert test_game.plays[0].play_description == ""
 
 
 def test_undo_functionality(tmp_path):
@@ -225,27 +280,38 @@ def test_undo_functionality(tmp_path):
         game_id="TEST001",
         info=GameInfo(date="2024-01-01", home_team="HOME", away_team="AWAY"),
         players=[],
-        plays=[Play(inning=1, team=0, batter_id="TEST1", count="00", pitches="", play_description="")]
+        plays=[
+            Play(
+                inning=1,
+                team=0,
+                batter_id="TEST1",
+                count="00",
+                pitches="",
+                play_description="",
+            )
+        ],
     )
-    
+
     test_event_file = EventFile(games=[test_game])
     editor = RetrosheetEditor(test_event_file, tmp_path)
-    
+
     # Test undo with no history
     initial_pitches = test_game.plays[0].pitches
     initial_result = test_game.plays[0].play_description
     editor._undo_last_action()
-    
+
     # Test undo after adding pitch
-    editor._add_pitch('S')
-    assert test_game.plays[0].pitches == 'S', "Should add strike"
-    
+    editor._add_pitch("S")
+    assert test_game.plays[0].pitches == "S", "Should add strike"
+
     editor._undo_last_action()
-    assert test_game.plays[0].pitches == '', "Should undo to empty pitches"
-    
+    assert test_game.plays[0].pitches == "", "Should undo to empty pitches"
+
     # Test undo after setting play result
-    editor._set_play_result('S')
-    assert test_game.plays[0].play_description == 'S8/G6', "Should set single in Retrosheet format"
-    
+    editor._set_play_result("S")
+    assert (
+        test_game.plays[0].play_description == "S8/G6"
+    ), "Should set single in Retrosheet format"
+
     editor._undo_last_action()
-    assert test_game.plays[0].play_description == '', "Should undo to empty result" 
+    assert test_game.plays[0].play_description == "", "Should undo to empty result"
