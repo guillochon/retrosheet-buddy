@@ -33,11 +33,12 @@ def test_out_play_hotkeys(test_event_file, tmp_path):
     """Test that out play hotkeys are correctly defined."""
     editor = RetrosheetEditor(test_event_file, tmp_path)
 
-    # Only generic OUT remains in play hotkeys; specific outs moved to wizard
-    assert "w" in editor.play_hotkeys
-    assert editor.play_hotkeys["w"] == "OUT"
+    # Only generic OUT remains in play hotkeys mapped to 'o'; specific outs moved to wizard
+    assert "o" in editor.play_hotkeys
+    assert editor.play_hotkeys["o"] == "OUT"
     assert "#" not in editor.play_hotkeys
-    assert "d" not in editor.play_hotkeys
+    # Ensure some keys are not accidentally mapped to OUT
+    assert editor.play_hotkeys.get("w") != "OUT"
     assert "[" not in editor.play_hotkeys
     assert "]" not in editor.play_hotkeys
 

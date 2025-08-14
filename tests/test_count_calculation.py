@@ -22,9 +22,9 @@ def calculate_count(pitches: str) -> str:
             strikes += 1
         # Other pitch types (H, V, A, M, P, I, Q, R, E, N, O, U) don't affect count
 
-    # Cap balls at 4 (walk) and strikes at 3 (strikeout)
+    # Cap balls at 4 (walk) and strikes at 2 (display never shows 3 strikes)
     balls = min(balls, 4)
-    strikes = min(strikes, 3)
+    strikes = min(strikes, 2)
 
     return f"{balls}{strikes}"
 
@@ -40,18 +40,18 @@ def calculate_count(pitches: str) -> str:
         ("BS", "11"),
         ("BBF", "21"),  # 2 balls, 1 strike (foul counts as strike)
         ("BBFS", "22"),  # 2 balls, 2 strikes
-        ("BBFSS", "23"),  # 2 balls, 3 strikes (strikeout)
-        ("BBFSSS", "23"),  # 2 balls, 3 strikes (strikeout)
-        ("BBFSSSB", "33"),  # 3 balls, 3 strikes
-        ("BBFSSSBB", "43"),  # 4 balls, 3 strikes
-        ("BBFSSSBBB", "43"),  # 5 balls, 3 strikes = 4 balls (capped), 3 strikes
-        ("BBFSSSBBBB", "43"),  # 6 balls, 3 strikes = 4 balls (capped), 3 strikes
+        ("BBFSS", "22"),  # display caps strikes at 2; strikeout handled by result
+        ("BBFSSS", "22"),  # display capped
+        ("BBFSSSB", "32"),  # display capped
+        ("BBFSSSBB", "42"),  # display capped
+        ("BBFSSSBBB", "42"),  # display capped
+        ("BBFSSSBBBB", "42"),  # display capped
         (
             "BFFFFF",
             "12",
         ),  # 1 ball, 5 fouls = 1 ball, 2 strikes (fouls only count up to 2)
         ("BBBBBBBB", "40"),  # 8 balls = 4 balls (capped at 4 for walk)
-        ("SSS", "03"),  # 3 strikes (strikeout)
+        ("SSS", "02"),  # display capped; strikeout handled by result
         (
             "SSF",
             "02",
@@ -63,16 +63,16 @@ def calculate_count(pitches: str) -> str:
         # Foul tip tests
         ("T", "01"),  # 1 foul tip = 1 strike
         ("BT", "11"),  # 1 ball, 1 foul tip = 1 ball, 1 strike
-        ("SST", "03"),  # 2 strikes, 1 foul tip = 3 strikes (strikeout)
+        ("SST", "02"),  # display capped; strikeout handled by result
         ("BBT", "21"),  # 2 balls, 1 foul tip = 2 balls, 1 strike
         ("BBST", "22"),  # 2 balls, 1 strike, 1 foul tip = 2 balls, 2 strikes
         (
             "BBSST",
-            "23",
-        ),  # 2 balls, 2 strikes, 1 foul tip = 2 balls, 3 strikes (strikeout)
-        ("SSTT", "03"),  # 2 strikes, 2 foul tips = 3 strikes (strikeout, capped at 3)
-        ("FFT", "03"),  # 2 fouls, 1 foul tip = 3 strikes (strikeout)
-        ("SFT", "03"),  # 1 strike, 1 foul, 1 foul tip = 3 strikes (strikeout)
+            "22",
+        ),  # display capped
+        ("SSTT", "02"),  # display capped
+        ("FFT", "02"),  # display capped
+        ("SFT", "02"),  # display capped
     ],
 )
 def test_count_calculation(pitches, expected):
@@ -114,7 +114,7 @@ def test_foul_tip_strikeout():
     """Test that foul tips on strike 2 result in a strikeout."""
     # Test foul tip on strike 2
     pitches = "SST"  # 2 strikes, then foul tip
-    expected = "03"  # 0 balls, 3 strikes (strikeout)
+    expected = "02"  # display capped; strikeout handled by result
     actual = calculate_count(pitches)
     assert (
         actual == expected

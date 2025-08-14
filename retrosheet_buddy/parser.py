@@ -14,10 +14,20 @@ class RetrosheetParser:
         self.current_game: Optional[Game] = None
         self.event_file = EventFile()
 
-    def _calculate_count(self, pitches: str) -> str:
-        """Calculate count from pitch sequence following baseball rules."""
-        balls = 0
-        strikes = 0
+    def _calculate_count(self, pitches: str, start_count: str = "00") -> str:
+        """Calculate count from pitch sequence following baseball rules.
+
+        Supports inheriting a non-zero starting count when the same batter's
+        plate appearance continues over multiple play records in the same inning.
+        """
+        try:
+            start_balls = int(start_count[0]) if start_count else 0
+            start_strikes = int(start_count[1]) if start_count else 0
+        except (ValueError, IndexError):
+            start_balls, start_strikes = 0, 0
+
+        balls = start_balls
+        strikes = start_strikes
 
         for pitch in pitches:
             if pitch == "B":
@@ -28,11 +38,13 @@ class RetrosheetParser:
                 # Foul balls only count as strikes up to 2 strikes
                 if strikes < 2:
                     strikes += 1
-            # Other pitch types (T, H, V, A, M, P, I, Q, R, E, N, O, U) don't affect count
+            elif pitch == "T":  # Foul tip counts as strike
+                strikes += 1
+            # Other pitch types (H, V, A, M, P, I, Q, R, E, N, O, U) don't affect count
 
-        # Cap balls at 4 (walk) and strikes at 3 (strikeout)
-        balls = min(balls, 4)
-        strikes = min(strikes, 3)
+        # Cap balls at 3 (display) and strikes at 2 for display
+        balls = min(balls, 3)
+        strikes = min(strikes, 2)
 
         return f"{balls}{strikes}"
 
@@ -139,9 +151,30 @@ class RetrosheetParser:
         original_count = parts[4]
         pitches = parts[5]
 
+        # Determine starting count: if this play is a continuation of the same
+        # batter in the same inning and team, inherit prior play's count.
+        start_count = "00"
+        if self.current_game and self.current_game.plays:
+            last_play = self.current_game.plays[-1]
+            # Compare to current line's inning/team/batter
+            try:
+                inning = int(parts[1])
+                team = int(parts[2])
+                batter_id = parts[3]
+            except Exception:
+                inning = last_play.inning + 1  # force mismatch on parse error
+                team = -1
+                batter_id = ""
+            if (
+                last_play.inning == inning
+                and last_play.team == team
+                and last_play.batter_id == batter_id
+            ):
+                start_count = last_play.count or "00"
+
         # Store original count and calculate working count for display/logic
         if original_count == "??":
-            count = self._calculate_count(pitches)
+            count = self._calculate_count(pitches, start_count)
         else:
             count = original_count
 

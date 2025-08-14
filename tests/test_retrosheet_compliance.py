@@ -85,10 +85,10 @@ class TestRetrosheetCompliance:
             ("BB", "20"),  # Two balls
             ("SS", "02"),  # Two strikes
             ("FFF", "02"),  # Three fouls = 2 strikes (fouls don't count after 2)
-            ("BBBB", "40"),  # Four balls = walk
-            ("SSS", "03"),  # Three strikes = strikeout
-            ("BBFSS", "23"),  # 2 balls, 3 strikes
-            ("BBFSSS", "23"),  # 2 balls, 3 strikes (capped)
+            ("BBBB", "30"),  # Four balls = walk; display caps balls at 3
+            ("SSS", "02"),  # Display caps at 2; strikeout handled separately
+            ("BBFSS", "22"),  # Display caps at 2
+            ("BBFSSS", "22"),  # Display caps at 2
         ]
 
         for pitches, expected in test_cases:

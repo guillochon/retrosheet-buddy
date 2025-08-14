@@ -1,6 +1,7 @@
 """Interactive editor for Retrosheet event files."""
 
 import platform
+import re
 import sys
 from pathlib import Path
 from typing import List, Tuple
@@ -60,6 +61,7 @@ def validate_shortcuts() -> None:
         "n": "No pitch",
         "o": "Foul on bunt",
         "u": "Unknown",
+        ".": "Ball in play (append X & switch)",
     }
 
     play_shortcuts = {
@@ -364,6 +366,7 @@ class RetrosheetEditor:
             "t": ("Throws/Relays", ["TH", "TH%", "R$"]),
             "e": ("Errors", ["E$"]),
             "h": ("Hit Location", []),
+            "r": ("Advance Runner", []),
         }
 
         # Hit Location builder state (used within modifier selection UI)
@@ -372,6 +375,11 @@ class RetrosheetEditor:
         self.hit_location_suffix = ""  # '' or 'M' or 'L'
         self.hit_location_depth = ""  # '' | 'S' | 'D' | 'XD'
         self.hit_location_foul = False  # True to append 'F' at the end
+
+        # Generic runner advance builder (used within modifier selection UI)
+        self.advance_runner_active = False
+        self.advance_runner_from_base = None  # '1','2','3' when selecting
+        self.advance_runner_tokens = []  # tokens like '1-2', '2-H', '3-3'
 
         # Undo functionality
         self.undo_history = (
@@ -397,23 +405,29 @@ class RetrosheetEditor:
             "n": "N",  # No pitch
             "o": "O",  # Foul on bunt
             "u": "U",  # Unknown
+            ".": "X",  # Ball in play: append X and switch to play mode
         }
 
         # Hotkey mappings for play results (consolidated to avoid duplication)
         # Out-related results are selected via the Out Type wizard after choosing OUT
         self.play_hotkeys = {
-            "w": "OUT",  # Out
+            "o": "OUT",  # Out
             "1": "S",  # Single
             "2": "D",  # Double
             "3": "T",  # Triple
             "4": "HR",  # Home run
-            "5": "PO",  # Pickoff
-            "6": "POCS",  # Pickoff caught stealing
+            "p": "PO",  # Pickoff
+            "c": "POCS",  # Pickoff caught stealing
+            "b": "BK",  # Balk (runner advances)
+            "d": "DI",  # Defensive indifference
+            "a": "PB",  # Passed ball
+            "w": "WP",  # Wild pitch
+            "s": "SB",  # Stolen base
             "l": "W",  # Walk
-            "y": "HP",  # Hit by pitch
-            "z": "E",  # Error
-            "8": "IW",  # Intentional walk
-            "9": "CI",  # Catcher interference
+            "h": "HP",  # Hit by pitch
+            "e": "E",  # Error
+            "i": "IW",  # Intentional walk
+            "j": "CI",  # Catcher interference
             "0": "OA",  # Out advancing
             ";": "ND",  # No play
         }
@@ -505,7 +519,12 @@ class RetrosheetEditor:
                     elif self.mode == "play":
                         self._clear_play_result()
                 elif self.mode == "pitch" and key in self.pitch_hotkeys:
-                    self._add_pitch(self.pitch_hotkeys[key])
+                    code = self.pitch_hotkeys[key]
+                    if code == "X":
+                        # Ball in play shortcut: append 'X' to pitches and switch to play mode
+                        self._mark_ball_in_play_and_switch()
+                    else:
+                        self._add_pitch(code)
                 elif self.mode == "play" and key in self.play_hotkeys:
                     # Only certain results should enter detail mode
                     result = self.play_hotkeys[key]
@@ -517,6 +536,13 @@ class RetrosheetEditor:
                         "E",
                         "PO",
                         "POCS",
+                        # Base-running events that need additional detail
+                        "OA",
+                        "BK",
+                        "DI",
+                        "PB",
+                        "WP",
+                        "SB",
                     ]:
                         # Generic out requires out-type/position details
                         # Hits and errors require hit-type/position details
@@ -548,6 +574,16 @@ class RetrosheetEditor:
                                 self._save_detail_mode_result()
                             # Allow saving pickoffs when base and details are selected
                             elif self.detail_mode_result in ["PO", "POCS"]:
+                                self._save_detail_mode_result()
+                            # Allow saving runner-advancement events (BK/DI/PB/WP/SB/OA)
+                            elif self.detail_mode_result in [
+                                "BK",
+                                "DI",
+                                "PB",
+                                "WP",
+                                "SB",
+                                "OA",
+                            ]:
                                 self._save_detail_mode_result()
                         else:
                             self._handle_detail_mode_input(key)
@@ -673,6 +709,44 @@ class RetrosheetEditor:
                     if self.selected_modifier_group == "h":
                         # Custom wizard UI for Hit Location
                         self._render_hit_location_builder(controls_text)
+                    elif self.selected_modifier_group == "r":
+                        # Advance Runner builder UI
+                        if self.advance_runner_tokens:
+                            controls_text.append(
+                                f"Selected: {';'.join(self.advance_runner_tokens)}\n",
+                                style="bold cyan",
+                            )
+                        if (
+                            not self.advance_runner_active
+                            or self.advance_runner_from_base is None
+                        ):
+                            controls_text.append(
+                                "Select runner base: [1], [2], [3]  [ENTER] to apply, [0] back\n",
+                                style="bold blue",
+                            )
+                        else:
+                            fb = self.advance_runner_from_base
+                            controls_text.append(
+                                f"From base: {fb}\n", style="bold green"
+                            )
+                            if fb == "1":
+                                controls_text.append(
+                                    "Destination: [2] Second  [1] Stay (1-1)\n",
+                                    style="bold blue",
+                                )
+                            elif fb == "2":
+                                controls_text.append(
+                                    "Destination: [3] Third  [2] Stay (2-2)\n",
+                                    style="bold blue",
+                                )
+                            else:
+                                controls_text.append(
+                                    "Destination: [H or 4] Home  [3] Stay (3-3)\n",
+                                    style="bold blue",
+                                )
+                            controls_text.append(
+                                "[ENTER] to apply, [0] back\n", style="bold blue"
+                            )
                     else:
                         # Render options in wrapped rows with max width, similar to other modes
                         self._add_modifier_options_wrapped(controls_text, codes)
@@ -810,6 +884,128 @@ class RetrosheetEditor:
                         controls_text.append(
                             "Press [ENTER] to save\n", style="bold cyan"
                         )
+                elif self.detail_mode_result in ["BK", "DI", "PB", "WP", "SB", "OA"]:
+                    # Runner advancement / stolen base / out advancing UI
+                    # Show current tokens (for SB these are SB2/SB3/SBH, others are base moves like 1-2)
+                    if getattr(self, "runner_tokens", None):
+                        controls_text.append(
+                            f"Selected: {';'.join(self.runner_tokens)}\n",
+                            style="bold cyan",
+                        )
+                    # Per-type instructions
+                    if self.detail_mode_result == "SB":
+                        controls_text.append(
+                            "Toggle stolen bases: [2] SB2  [3] SB3  [H or 4] SBH\n",
+                            style="bold blue",
+                        )
+                        # Show current SB selections
+                        if getattr(self, "sb_targets", None):
+                            ordered = []
+                            for b in ["2", "3", "H"]:
+                                if b in self.sb_targets:
+                                    ordered.append(f"SB{b}")
+                            if ordered:
+                                controls_text.append(
+                                    f"Selected: {';'.join(ordered)}\n",
+                                    style="bold cyan",
+                                )
+                        controls_text.append(
+                            "Press [ENTER] to save\n", style="bold cyan"
+                        )
+                    elif self.detail_mode_result in ["BK", "DI", "PB", "WP"]:
+                        # Simple advances only
+                        current_game = self.event_file.games[self.current_game_index]
+                        current_play = current_game.plays[self.current_play_index]
+                        is_strikeout_recorded = bool(
+                            (current_play.play_description or "").startswith("K")
+                        )
+                        if not getattr(self, "advance_from_base", None):
+                            # Show from-base options; add Batter (B) if a strikeout is recorded
+                            base_prompt = "Select runner base to advance: [1], [2], [3]"
+                            if is_strikeout_recorded:
+                                base_prompt += "  [B] Batter"
+                            controls_text.append(base_prompt + "\n", style="bold blue")
+                        else:
+                            from_b = self.advance_from_base
+                            from_label = "Batter" if from_b == "B" else from_b
+                            controls_text.append(
+                                f"From base: {from_label}\n", style="bold green"
+                            )
+                            if from_b == "1":
+                                controls_text.append(
+                                    "Destination: [2] Second\n", style="bold blue"
+                                )
+                            elif from_b == "2":
+                                controls_text.append(
+                                    "Destination: [3] Third\n", style="bold blue"
+                                )
+                            elif from_b == "3":
+                                controls_text.append(
+                                    "Destination: [H or 4] Home\n",
+                                    style="bold blue",
+                                )
+                            elif from_b == "B":
+                                controls_text.append(
+                                    "Destination: [1] First  [2] Second  [3] Third  [H or 4] Home\n",
+                                    style="bold blue",
+                                )
+                        controls_text.append(
+                            "Press [ENTER] to save\n", style="bold cyan"
+                        )
+                    else:  # OA (can be advance or out with fielders)
+                        stage = getattr(self, "oa_stage", "choose_runner")
+                        if stage == "choose_runner":
+                            controls_text.append(
+                                "Select runner base: [1], [2], [3]\n", style="bold blue"
+                            )
+                        elif stage == "choose_action":
+                            controls_text.append(
+                                "Action: ['-' Advance]  ['X' Out attempting to advance]\n",
+                                style="bold blue",
+                            )
+                        elif stage == "choose_dest":
+                            from_b = self.oa_from_base
+                            controls_text.append(
+                                f"From base: {from_b}\n", style="bold green"
+                            )
+                            if not self.oa_out:
+                                if from_b == "1":
+                                    controls_text.append(
+                                        "Destination: [2] Second\n", style="bold blue"
+                                    )
+                                elif from_b == "2":
+                                    controls_text.append(
+                                        "Destination: [3] Third\n", style="bold blue"
+                                    )
+                                else:
+                                    controls_text.append(
+                                        "Destination: [H or 4] Home\n",
+                                        style="bold blue",
+                                    )
+                            else:
+                                if from_b == "1":
+                                    controls_text.append(
+                                        "Out at: [2] Second\n", style="bold blue"
+                                    )
+                                elif from_b == "2":
+                                    controls_text.append(
+                                        "Out at: [3] Third\n", style="bold blue"
+                                    )
+                                else:
+                                    controls_text.append(
+                                        "Out at: [H or 4] Home\n", style="bold blue"
+                                    )
+                        elif stage == "choose_fielders":
+                            controls_text.append(
+                                "Enter fielder sequence digits [1-9]; press [ENTER] to finalize token\n",
+                                style="bold blue",
+                            )
+                            if getattr(self, "oa_fielders", None):
+                                controls_text.append(
+                                    f"Fielders: {'-'.join(map(str, self.oa_fielders))}\n",
+                                    style="bold cyan",
+                                )
+                        # End OA instruction rendering
                 else:
                     # Regular hits need hit type and fielding position
                     if self.detail_mode_hit_type is None:
@@ -974,6 +1170,7 @@ class RetrosheetEditor:
             "N": "No pitch",
             "O": "Foul on bunt",
             "U": "Unknown",
+            "X": "Ball in play",
         }
 
     def _get_play_descriptions(self) -> dict:
@@ -1005,6 +1202,11 @@ class RetrosheetEditor:
             "UO": "Unassisted out",
             "PO": "Pickoff",
             "POCS": "Pickoff - Caught Stealing",
+            "BK": "Balk",
+            "DI": "Defensive indifference",
+            "PB": "Passed ball",
+            "WP": "Wild pitch",
+            "SB": "Stolen base",
         }
 
     def _get_hit_type_descriptions(self) -> dict:
@@ -1224,10 +1426,26 @@ class RetrosheetEditor:
             self.current_game_index += 1
             self.current_play_index = 0
 
-    def _calculate_count(self, pitches: str) -> str:
-        """Calculate count from pitch sequence following baseball rules."""
-        balls = 0
-        strikes = 0
+    def _calculate_count(self, pitches: str, start_count: str = "00") -> str:
+        """Calculate count from pitch sequence following baseball rules.
+
+        If a non-default ``start_count`` is provided (e.g., when the prior play
+        involves the same batter in the same inning), begin from that count
+        instead of "00".
+
+        Display rules:
+        - Balls are capped at 3 for display
+        - Strikes are capped at 2 for display
+        """
+        # Initialize from starting count
+        try:
+            start_balls = int(start_count[0]) if start_count else 0
+            start_strikes = int(start_count[1]) if start_count else 0
+        except (ValueError, IndexError):
+            start_balls, start_strikes = 0, 0
+
+        balls = start_balls
+        strikes = start_strikes
 
         for pitch in pitches:
             if pitch == "B":
@@ -1243,11 +1461,82 @@ class RetrosheetEditor:
                 strikes += 1
             # Other pitch types (H, V, A, M, P, I, Q, R, E, N, O, U) don't affect count
 
-        # Cap balls at 4 (walk) and strikes at 3 (strikeout)
-        balls = min(balls, 4)
-        strikes = min(strikes, 3)
+        # Cap balls at 3 and strikes at 2 for display (never show 3 strikes)
+        balls = min(balls, 3)
+        strikes = min(strikes, 2)
 
         return f"{balls}{strikes}"
+
+    def _calculate_raw_balls_strikes(
+        self, pitches: str, start_count: str = "00"
+    ) -> tuple:
+        """Calculate uncapped balls and strikes from pitch sequence.
+
+        Used for logic decisions (e.g., automatic walk/strikeout) independent of
+        display capping.
+        """
+        try:
+            start_balls = int(start_count[0]) if start_count else 0
+            start_strikes = int(start_count[1]) if start_count else 0
+        except (ValueError, IndexError):
+            start_balls, start_strikes = 0, 0
+
+        balls = start_balls
+        strikes = start_strikes
+
+        for pitch in pitches:
+            if pitch == "B":
+                balls += 1
+            elif pitch in ["S", "C"]:
+                strikes += 1
+            elif pitch == "F":
+                if strikes < 2:
+                    strikes += 1
+            elif pitch == "T":
+                strikes += 1
+            # Other pitch types (H, V, A, M, P, I, Q, R, E, N, O, U) don't affect count
+
+        return balls, strikes
+
+    def _starting_count_for_play_index(self, game: Game, play_index: int) -> str:
+        """Return starting count for a given play index.
+
+        If the immediately prior play involves the same batter, inning, and team,
+        inherit its count; otherwise return "00".
+        """
+        if play_index <= 0:
+            return "00"
+        prior = game.plays[play_index - 1]
+        current = game.plays[play_index]
+        if (
+            prior.inning == current.inning
+            and prior.team == current.team
+            and prior.batter_id == current.batter_id
+        ):
+            return prior.count or "00"
+        return "00"
+
+    def _has_strikeout(self, pitches: str) -> bool:
+        """Return True if the pitch sequence results in a strikeout (3 strikes).
+
+        This mirrors baseball rules:
+        - S, C always add a strike
+        - F adds a strike only up to 2 strikes
+        - T (foul tip) adds a strike and can be strike three
+        """
+        strikes = 0
+        for pitch in pitches:
+            if pitch in ["S", "C"]:
+                strikes += 1
+            elif pitch == "F":
+                if strikes < 2:
+                    strikes += 1
+            elif pitch == "T":
+                strikes += 1
+            # Other pitch types do not affect strikes
+            if strikes >= 3:
+                return True
+        return False
 
     def _add_pitch(self, pitch: str) -> None:
         """Add a pitch to the current play."""
@@ -1257,34 +1546,73 @@ class RetrosheetEditor:
         # Save state before making changes
         self._save_state_for_undo()
 
-        # Add pitch to the pitch sequence
+        # If a wild pitch (V) or passed ball (A) is recorded from pitch input,
+        # do NOT add the V/A token to the pitch string. Only append a period to
+        # separate the prior pitch sequence, then enter the runner-advancement
+        # detail mode for PB/WP.
+        if pitch in ["V", "A"]:
+            if current_play.pitches:
+                current_play.pitches += "."
+            else:
+                current_play.pitches = "."
+            # Update count after modifying pitches
+            start_count = self._starting_count_for_play_index(
+                current_game, self.current_play_index
+            )
+            current_play.count = self._calculate_count(
+                current_play.pitches, start_count
+            )
+            # Prepare and enter detail mode for runner advances
+            self.detail_mode_from_pitch_pb_wp = True
+            self.detail_mode_pb_wp_code = "WP" if pitch == "V" else "PB"
+            # Save current state before switching modes
+            current_play.edited = True
+            self._save_current_state()
+            # Enter detail mode for PB/WP
+            self._enter_detail_mode(self.detail_mode_pb_wp_code)
+            return
+
+        # Add pitch to the pitch sequence (normal pitches)
         if current_play.pitches:
             current_play.pitches += pitch
         else:
             current_play.pitches = pitch
 
-        # Update count (fouls count as strikes)
-        current_play.count = self._calculate_count(current_play.pitches)
+        # Update count (fouls count as strikes), inheriting prior count for same batter
+        start_count = self._starting_count_for_play_index(
+            current_game, self.current_play_index
+        )
+        current_play.count = self._calculate_count(current_play.pitches, start_count)
         # Mark as edited because pitches changed
         current_play.edited = True
 
-        # Check for automatic walk or strikeout
-        balls, strikes = int(current_play.count[0]), int(current_play.count[1])
+        # Check for automatic walk or strikeout using RAW counts (not display-capped)
+        raw_balls, raw_strikes = self._calculate_raw_balls_strikes(
+            current_play.pitches, start_count
+        )
 
-        if balls == 4:
+        if raw_balls >= 4:
             # Automatic walk
             current_play.play_description = "W"
+            # For display, show 3 balls and current strikes (capped at 2)
+            display_strikes = min(raw_strikes, 2)
+            current_play.count = f"3{display_strikes}"
             current_play.edited = True
             self._save_current_state()
             # Move to next batter
             self._next_play()
-        elif strikes == 3:
+        elif self._has_strikeout(current_play.pitches):
             # Automatic strikeout
-            current_play.play_description = "K"
+            # If there is already a suffix such as "+PB.2-3" from a prior PB/WP,
+            # prefix the strikeout result instead of overwriting it.
+            existing = current_play.play_description or ""
+            if existing and not existing.startswith("K"):
+                current_play.play_description = "K" + existing
+            else:
+                current_play.play_description = "K"
             current_play.edited = True
             self._save_current_state()
-            # Move to next batter
-            self._next_play()
+            # Do not auto-advance on strikeout
         else:
             self._save_current_state()
 
@@ -1302,6 +1630,32 @@ class RetrosheetEditor:
         current_play.edited = True
 
         self._save_current_state()
+
+    def _ensure_ball_in_play_marker(self) -> None:
+        """Append 'X' to the pitch string if not already present and update count.
+
+        Does not push a second undo snapshot; assumes caller already saved undo state
+        for the encompassing operation.
+        """
+        current_game = self.event_file.games[self.current_game_index]
+        current_play = current_game.plays[self.current_play_index]
+        if "X" not in (current_play.pitches or ""):
+            current_play.pitches = (current_play.pitches or "") + "X"
+            start_count = self._starting_count_for_play_index(
+                current_game, self.current_play_index
+            )
+            current_play.count = self._calculate_count(
+                current_play.pitches, start_count
+            )
+            current_play.edited = True
+
+    def _mark_ball_in_play_and_switch(self) -> None:
+        """Pitch-mode shortcut: append 'X' and switch to play mode."""
+        # Save state before making changes
+        self._save_state_for_undo()
+        self._ensure_ball_in_play_marker()
+        self._save_current_state()
+        self.mode = "play"
 
     def _save_current_state(self) -> None:
         """Save the current state to disk."""
@@ -1351,7 +1705,8 @@ class RetrosheetEditor:
         current_play.edited = False
 
         # Update count (fouls count as strikes)
-        current_play.count = self._calculate_count(current_play.pitches)
+        start_count = self._starting_count_for_play_index(current_game, play_index)
+        current_play.count = self._calculate_count(current_play.pitches, start_count)
 
         self.console.print("Undo completed", style="green")
         self._save_current_state()
@@ -1368,7 +1723,10 @@ class RetrosheetEditor:
         self._save_state_for_undo()
 
         current_play.pitches = ""
-        current_play.count = self._calculate_count(current_play.pitches)
+        start_count = self._starting_count_for_play_index(
+            current_game, self.current_play_index
+        )
+        current_play.count = self._calculate_count(current_play.pitches, start_count)
         current_play.edited = True
 
         self.console.print("Cleared pitches", style="green")
@@ -1400,6 +1758,13 @@ class RetrosheetEditor:
         self.detail_mode_hit_type = None
         self.detail_mode_fielding_position = None
         self.mode = "detail"
+        # Reset any previous modifier selection state so new workflows start clean
+        self.modifier_selection_active = False
+        self.selected_modifier_group = None
+        self.selected_modifiers = []
+        self.modifier_param_request = None
+        self.current_modifier_options_keymap = {}
+        self.modifiers_live_applied = False
         # Initialize pickoff-specific state
         self.detail_pickoff_base = None  # '1','2','3' or 'H' for home
         self.detail_pickoff_fielders = []  # list of ints 1-9
@@ -1407,6 +1772,21 @@ class RetrosheetEditor:
             None  # int 1-9 if error on fielder (PO only)
         )
         self.detail_pickoff_awaiting_error_fielder = False
+        # Initialize runner-advancement builder state
+        self.runner_tokens = []  # collected tokens like '1-2', '2X3(25)', 'SB2'
+        self.advance_from_base = None  # for BK/DI/PB/WP path
+        # OA-specific staged builder
+        self.oa_stage = "choose_runner"
+        self.oa_from_base = None
+        self.oa_out = False
+        self.oa_dest = None
+        self.oa_fielders = []
+        # SB builder (toggle set of bases)
+        self.sb_targets = set()
+        # Ensure flags exist for PB/WP pitch-triggered flow
+        if not hasattr(self, "detail_mode_from_pitch_pb_wp"):
+            self.detail_mode_from_pitch_pb_wp = False
+            self.detail_mode_pb_wp_code = None
 
     def _handle_detail_mode_input(self, key: str) -> None:
         """Handle input in detail mode."""
@@ -1455,6 +1835,97 @@ class RetrosheetEditor:
                     self.detail_pickoff_fielders.append(
                         self.fielding_position_hotkeys[key]
                     )
+        elif self.detail_mode_result in ["BK", "DI", "PB", "WP", "SB", "OA"]:
+            # Runner advancement builder
+            if self.detail_mode_result == "SB":
+                # Toggle stolen base tokens SB2/SB3/SBH using keys 2,3,4/H
+                if key in ["2", "3", "4", "h"]:
+                    target = "H" if key in ["4", "h"] else key
+                    if target in self.sb_targets:
+                        self.sb_targets.remove(target)
+                    else:
+                        self.sb_targets.add(target)
+                # ENTER handled in main loop to save
+            elif self.detail_mode_result in ["BK", "DI", "PB", "WP"]:
+                # Simple advance: choose from base then destination
+                # If a strikeout was already recorded for this play, allow batter (B) -> 1
+                current_game = self.event_file.games[self.current_game_index]
+                current_play = current_game.plays[self.current_play_index]
+                is_strikeout_recorded = bool(
+                    (current_play.play_description or "").startswith("K")
+                )
+                if self.advance_from_base is None:
+                    if key in ["1", "2", "3"]:
+                        self.advance_from_base = key
+                    elif is_strikeout_recorded and key in ["b", "B"]:
+                        self.advance_from_base = "B"
+                elif self.advance_from_base is not None:
+                    from_b = self.advance_from_base
+                    if from_b == "1" and key == "2":
+                        self.runner_tokens.append("1-2")
+                        self.advance_from_base = None
+                    elif from_b == "2" and key == "3":
+                        self.runner_tokens.append("2-3")
+                        self.advance_from_base = None
+                    elif from_b == "3" and key in ["4", "h"]:
+                        self.runner_tokens.append("3-H")
+                        self.advance_from_base = None
+                    elif from_b == "B" and key in ["1", "2", "3", "4", "h"]:
+                        dest = {
+                            "1": "1",
+                            "2": "2",
+                            "3": "3",
+                            "4": "H",
+                            "h": "H",
+                        }[key]
+                        self.runner_tokens.append(f"B-{dest}")
+                        self.advance_from_base = None
+            else:  # OA builder
+                if self.oa_stage == "choose_runner" and key in ["1", "2", "3"]:
+                    self.oa_from_base = key
+                    self.oa_stage = "choose_action"
+                elif self.oa_stage == "choose_action" and key in ["-", "x"]:
+                    self.oa_out = key == "x"
+                    self.oa_stage = "choose_dest"
+                elif self.oa_stage == "choose_dest":
+                    if self.oa_from_base == "1" and key == "2":
+                        self.oa_dest = "2"
+                    elif self.oa_from_base == "2" and key == "3":
+                        self.oa_dest = "3"
+                    elif self.oa_from_base == "3" and key in ["4", "h"]:
+                        self.oa_dest = "H"
+                    if self.oa_dest:
+                        if self.oa_out:
+                            self.oa_stage = "choose_fielders"
+                            self.oa_fielders = []
+                        else:
+                            # finalize simple advance token
+                            self.runner_tokens.append(
+                                f"{self.oa_from_base}-{self.oa_dest}"
+                            )
+                            # reset OA builder
+                            self.oa_stage = "choose_runner"
+                            self.oa_from_base = None
+                            self.oa_out = False
+                            self.oa_dest = None
+                    # else: wait for valid dest
+                elif self.oa_stage == "choose_fielders":
+                    if key in self.fielding_position_hotkeys:
+                        self.oa_fielders.append(self.fielding_position_hotkeys[key])
+                    elif key in ["\r", "\n"]:
+                        # require at least one fielder
+                        if not self.oa_fielders:
+                            return
+                        seq = "".join(map(str, self.oa_fielders))
+                        self.runner_tokens.append(
+                            f"{self.oa_from_base}X{self.oa_dest}({seq})"
+                        )
+                        # reset OA builder
+                        self.oa_stage = "choose_runner"
+                        self.oa_from_base = None
+                        self.oa_out = False
+                        self.oa_dest = None
+                        self.oa_fielders = []
         else:
             # Regular hits need hit type and fielding position
             if key in self.hit_type_hotkeys:
@@ -1524,6 +1995,61 @@ class RetrosheetEditor:
             self.mode = "pitch"
             return
 
+        # Handle runner advancement events (BK, DI, PB, WP, SB, OA)
+        if self.detail_mode_result in ["BK", "DI", "PB", "WP", "SB", "OA"]:
+            # Build description string
+            current_game = self.event_file.games[self.current_game_index]
+            current_play = current_game.plays[self.current_play_index]
+            self._save_state_for_undo()
+            if self.detail_mode_result == "SB":
+                # From toggled set
+                if not self.sb_targets:
+                    self.console.print(
+                        "Select at least one stolen base", style="yellow"
+                    )
+                    return
+                # produce stable order 2,3,H
+                parts = []
+                for b in ["2", "3", "H"]:
+                    if b in self.sb_targets:
+                        parts.append(f"SB{b}")
+                desc = ";".join(parts)
+                current_play.play_description = desc
+            else:
+                # For BK/DI/PB/WP/OA use CODE.<tokens>
+                if not self.runner_tokens:
+                    self.console.print(
+                        "Add at least one runner advance (e.g., 1-2)", style="yellow"
+                    )
+                    return
+                # If PB/WP was initiated from pitch entry, append as a suffix
+                # to the existing play result: "+PB.2-3" or "+WP.1-2;3-H".
+                if self.detail_mode_result in ["PB", "WP"] and getattr(
+                    self, "detail_mode_from_pitch_pb_wp", False
+                ):
+                    suffix = (
+                        "+"
+                        + self.detail_mode_result
+                        + "."
+                        + ";".join(self.runner_tokens)
+                    )
+                    base_desc = current_play.play_description or ""
+                    current_play.play_description = base_desc + suffix
+                else:
+                    desc = f"{self.detail_mode_result}." + ";".join(self.runner_tokens)
+                    current_play.play_description = desc
+            current_play.edited = True
+            self._save_current_state()
+
+            # Exit detail mode
+            self._reset_detail_mode()
+            self.mode = "pitch"
+            # Reset PB/WP pitch-trigger flag after saving advances
+            if hasattr(self, "detail_mode_from_pitch_pb_wp"):
+                self.detail_mode_from_pitch_pb_wp = False
+                self.detail_mode_pb_wp_code = None
+            return
+
         # Check if we have the required selections based on play type
         if self.detail_mode_result in ["OUT", "GDP", "LDP", "TP", "FO", "UO"]:
             # Out types need out type and fielding positions
@@ -1546,7 +2072,14 @@ class RetrosheetEditor:
                 # Save state before making changes
                 self._save_state_for_undo()
 
-                current_play.play_description = play_description
+                # Preserve any previously appended runner-advancement suffix (e.g., +PB.2-3)
+                existing = current_play.play_description or ""
+                suffix_idx = existing.find("+")
+                suffix = existing[suffix_idx:] if suffix_idx != -1 else ""
+                current_play.play_description = play_description + suffix
+                # Append 'X' to pitches for balls put in play on outs, except strikeouts
+                if self.detail_mode_out_type != "K":
+                    self._ensure_ball_in_play_marker()
                 current_play.edited = True
                 self._save_current_state()
 
@@ -1584,7 +2117,13 @@ class RetrosheetEditor:
                 # Save state before making changes
                 self._save_state_for_undo()
 
-                current_play.play_description = play_description
+                # Preserve any previously appended runner-advancement suffix (e.g., +PB.2-3)
+                existing = current_play.play_description or ""
+                suffix_idx = existing.find("+")
+                suffix = existing[suffix_idx:] if suffix_idx != -1 else ""
+                current_play.play_description = play_description + suffix
+                # Append 'X' to pitches for balls put in play on hits
+                self._ensure_ball_in_play_marker()
                 current_play.edited = True
                 self._save_current_state()
 
@@ -1701,6 +2240,19 @@ class RetrosheetEditor:
         self.detail_pickoff_fielders = []
         self.detail_pickoff_error_fielder = None
         self.detail_pickoff_awaiting_error_fielder = False
+        # Reset runner-advancement state
+        self.runner_tokens = []
+        self.advance_from_base = None
+        self.oa_stage = "choose_runner"
+        self.oa_from_base = None
+        self.oa_out = False
+        self.oa_dest = None
+        self.oa_fielders = []
+        self.sb_targets = set()
+        # Reset advance-runner (modifiers UI) state
+        self.advance_runner_active = False
+        self.advance_runner_from_base = None
+        self.advance_runner_tokens = []
 
     def _start_modifier_detail_mode(self) -> None:
         """Begin the additional details selection UI inside detail mode."""
@@ -1719,7 +2271,10 @@ class RetrosheetEditor:
                 return
 
         # Finish and apply modifiers (only when not inside a wizard)
-        if key in ["\r", "\n"]:
+        if key in ["\r", "\n"] and not (
+            self.selected_modifier_group == "r"
+            and getattr(self, "advance_runner_active", False)
+        ):
             self._apply_modifiers_to_current_play()
             # Return to pitch mode after applying modifiers
             self.mode = "pitch"
@@ -1765,6 +2320,11 @@ class RetrosheetEditor:
                     self.hit_location_positions = ""
                     self.hit_location_suffix = ""
                     self.hit_location_depth = ""
+                elif key == "r":
+                    # Start Advance Runner builder inside modifiers UI
+                    self.advance_runner_active = True
+                    self.advance_runner_from_base = None
+                return
             return
 
         # Choose option within group
@@ -1780,6 +2340,55 @@ class RetrosheetEditor:
             else:
                 self._append_modifier_to_current_play(code)
         # Any other key ignored
+
+        # Handle Advance Runner wizard keys
+        if self.selected_modifier_group == "r" and self.advance_runner_active:
+            # Back to groups
+            if key == "0":
+                self.selected_modifier_group = None
+                self.advance_runner_active = False
+                self.advance_runner_from_base = None
+                return
+            # Save/apply tokens to play and remain in modifiers UI
+            if key in ["\r", "\n"]:
+                if self.advance_runner_tokens:
+                    current_game = self.event_file.games[self.current_game_index]
+                    current_play = current_game.plays[self.current_play_index]
+                    if current_play.play_description:
+                        if "." in current_play.play_description:
+                            current_play.play_description += ";" + ";".join(
+                                self.advance_runner_tokens
+                            )
+                        else:
+                            current_play.play_description += "." + ";".join(
+                                self.advance_runner_tokens
+                            )
+                        current_play.edited = True
+                        self._save_current_state()
+                self.advance_runner_active = False
+                self.advance_runner_from_base = None
+                self.advance_runner_tokens = []
+                self.selected_modifier_group = None
+                return
+            # Choose from-base
+            if self.advance_runner_from_base is None and key in ["1", "2", "3"]:
+                self.advance_runner_from_base = key
+                return
+            # Choose dest based on from-base; allow explicitly no-advance token like 3-3
+            if self.advance_runner_from_base is not None:
+                fb = self.advance_runner_from_base
+                dest = None
+                if fb == "1" and key in ["1", "2"]:
+                    dest = "2" if key == "2" else "1"
+                elif fb == "2" and key in ["2", "3"]:
+                    dest = "3" if key == "3" else "2"
+                elif fb == "3" and key in ["3", "4", "h"]:
+                    dest = "H" if key in ["4", "h"] else "3"
+                if dest:
+                    token = f"{fb}-{dest}"
+                    self.advance_runner_tokens.append(token)
+                    self.advance_runner_from_base = None
+                return
 
     def _render_hit_location_builder(self, controls_text: Text) -> None:
         """Render the Hit Location builder UI inside the modifiers panel."""
@@ -1912,10 +2521,43 @@ class RetrosheetEditor:
         current_play = current_game.plays[self.current_play_index]
         if not current_play.play_description:
             return
+        # If this is the first hit-location append after the hit type token (e.g., after '/G'),
+        # prefix the primary fielder once. Subsequent appends should not re-prefix.
+        fielder = self._extract_primary_fielder_from_play_description(
+            current_play.play_description
+        )
+        tail_after_slash = current_play.play_description.split("/")[-1]
+        is_first_append = tail_after_slash in {"G", "L", "F", "P", "B"}
+        # Prefix the primary fielder only for infielders (1-6); for outfielders (7-9), don't prefix
+        should_prefix = (
+            bool(fielder) and is_first_append and int(fielder) in {1, 2, 3, 4, 5, 6}
+        )
+        prefixed_code = f"{fielder}{code}" if should_prefix else code
         # Append directly without space or slash
-        current_play.play_description += f"{code}"
+        current_play.play_description += f"{prefixed_code}"
         current_play.edited = True
         self._save_current_state()
+
+    def _extract_primary_fielder_from_play_description(self, desc: str):
+        """Extract the primary fielder digit immediately following the result token before '/'.
+
+        Examples:
+        - S6/G -> 6
+        - D7/L -> 7
+        - E6/G -> 6
+        - FC6/G -> 6
+        - HR/F -> None (no fielder)
+        """
+        # Match leading letters, then capture digits before the first '/'
+        match = re.match(r"^[A-Z]+(\d+)/", desc)
+        if match:
+            digits = match.group(1)
+            # Only return the first digit (positions are 1..9)
+            try:
+                return int(digits[0])
+            except (ValueError, IndexError):
+                return None
+        return None
 
     def _apply_modifiers_to_current_play(self) -> None:
         """Append selected modifiers to the current play description and save."""

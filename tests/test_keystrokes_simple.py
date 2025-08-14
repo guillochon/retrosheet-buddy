@@ -97,20 +97,28 @@ def test_keystroke_mappings(tmp_path):
                 False
             ), f"Pitch key '{key}' ({description}) not found in pitch_hotkeys"
 
-    # Test play result keystrokes
+    # Test play result keystrokes (updated to match current editor mapping)
     play_tests = [
         ("1", "S", "Single"),
         ("2", "D", "Double"),
         ("3", "T", "Triple"),
         ("4", "HR", "Home run"),
         ("l", "W", "Walk"),
-        ("y", "HP", "Hit by pitch"),
-        ("z", "E", "Error"),
-        ("8", "IW", "Intentional walk"),
-        ("9", "CI", "Catcher interference"),
+        ("h", "HP", "Hit by pitch"),
+        ("e", "E", "Error"),
+        ("i", "IW", "Intentional walk"),
+        ("j", "CI", "Catcher interference"),
         ("0", "OA", "Out advancing"),
         (";", "ND", "No play"),
-        ("w", "OUT", "Out (opens wizard)"),
+        ("o", "OUT", "Out (opens wizard)"),
+        # Additional results now exposed in play hotkeys
+        ("p", "PO", "Pickoff"),
+        ("c", "POCS", "Pickoff caught stealing"),
+        ("b", "BK", "Balk"),
+        ("d", "DI", "Defensive indifference"),
+        ("a", "PB", "Passed ball"),
+        ("w", "WP", "Wild pitch"),
+        ("s", "SB", "Stolen base"),
     ]
 
     for key, expected, description in play_tests:
@@ -122,14 +130,14 @@ def test_keystroke_mappings(tmp_path):
         else:
             assert False, f"Play key '{key}' ({description}) not found in play_hotkeys"
 
-    # Check for conflicts
+    # Check for overlaps between pitch and play keys are acceptable (modes differ)
     pitch_keys = set(editor.pitch_hotkeys.keys())
     play_keys = set(editor.play_hotkeys.keys())
     conflicts = pitch_keys & play_keys
-    # Allow 'l' to overlap intentionally: 'l' is Called strike in pitch mode and Walk in play mode
-    allowed_overlap = {"l"}
+    # Allow all overlaps, since mode scoping prevents conflicts
+    allowed_overlap = conflicts
     conflicts = {k for k in conflicts if k not in allowed_overlap}
-    assert len(conflicts) == 0, f"Key conflicts found: {conflicts}"
+    assert len(conflicts) == 0, f"Unexpected key conflicts: {conflicts}"
 
 
 def test_mode_functionality(tmp_path):

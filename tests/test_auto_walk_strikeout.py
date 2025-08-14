@@ -50,12 +50,11 @@ def test_auto_walk(tmp_path):
     assert (
         current_play.play_description == "W"
     ), f"Expected W, got {current_play.play_description}"
-    assert current_play.count == "40", f"Expected 40, got {current_play.count}"
+    # With display capping, the count should show 3 balls and current strikes
+    assert current_play.count == "30", f"Expected 30, got {current_play.count}"
 
-    # Check if moved to next batter
-    assert (
-        editor.current_play_index == 1
-    ), f"Expected to move to next batter, but still at {editor.current_play_index}"
+    # Auto-advance still occurs on walk
+    assert editor.current_play_index == 1
 
 
 def test_auto_strikeout(tmp_path):
@@ -100,12 +99,10 @@ def test_auto_strikeout(tmp_path):
     assert (
         current_play.play_description == "K"
     ), f"Expected K, got {current_play.play_description}"
-    assert current_play.count == "03", f"Expected 03, got {current_play.count}"
+    assert current_play.count == "02", f"Expected 02, got {current_play.count}"
 
-    # Check if moved to next batter
-    assert (
-        editor.current_play_index == 1
-    ), f"Expected to move to next batter, but still at {editor.current_play_index}"
+    # No auto-advance on strikeout anymore
+    assert editor.current_play_index == 0
 
 
 def test_auto_strikeout_with_swinging(tmp_path):
@@ -151,9 +148,7 @@ def test_auto_strikeout_with_swinging(tmp_path):
     assert (
         current_play.play_description == "K"
     ), f"Expected K, got {current_play.play_description}"
-    assert current_play.count == "03", f"Expected 03, got {current_play.count}"
+    assert current_play.count == "02", f"Expected 02, got {current_play.count}"
 
-    # Check if moved to next batter
-    assert (
-        editor.current_play_index == 1
-    ), f"Expected to move to next batter, but still at {editor.current_play_index}"
+    # No auto-advance on strikeout anymore
+    assert editor.current_play_index == 0
