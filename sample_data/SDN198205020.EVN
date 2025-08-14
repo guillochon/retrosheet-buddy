@@ -1,0 +1,137 @@
+id,SDN198205020
+version,1
+info,inputprogvers,"version 7RS(19) of 07/07/92"
+info,visteam,PHI
+info,hometeam,SDN
+info,site,SAN01
+info,date,1982/05/02
+info,number,0
+info,starttime,0:00PM
+info,daynight,day
+info,usedh,false
+info,umphome,dalej901
+info,ump1b,rungp901
+info,ump2b,grege901
+info,ump3b,engeb901
+info,scorer,"Phillies"
+info,translator,"Carl P. McCarty"
+info,inputter,"Carl P. McCarty"
+info,inputtime,1994/01/01 11:08AM
+info,howscored,park
+info,pitches,none
+info,temp,0
+info,winddir,unknown
+info,windspeed,-1
+info,fieldcond,unknown
+info,precip,unknown
+info,sky,unknown
+info,timeofgame,126
+info,attendance,44227
+info,wp,krukm001
+info,lp,curtj001
+info,save,
+info,gwrbi,
+start,dernb001,"Bob Dernier",0,1,8
+start,rosep001,"Pete Rose",0,2,3
+start,mattg001,"Gary Matthews",0,3,7
+start,schmm001,"Mike Schmidt",0,4,5
+start,diazb001,"Bo Diaz",0,5,2
+start,david101,"Dick Davis",0,6,9
+start,robed102,"Dave Roberts",0,7,4
+start,dejei001,"Ivan DeJesus",0,8,6
+start,krukm001,"Mike Krukow",0,9,1
+start,salal001,"Luis Salazar",1,1,5
+start,bonij001,"Juan Bonilla",1,2,4
+start,tempg001,"Garry Templeton",1,3,6
+start,joner002,"Ruppert Jones",1,4,8
+start,lezcs001,"Sixto Lezcano",1,5,9
+start,kennt001,"Terry Kennedy",1,6,2
+start,lefej001,"Joe Lefebvre",1,7,7
+start,perkb001,"Broderick Perkins",1,8,3
+start,curtj001,"Jack Curtis",1,9,1
+play,1,0,dernb001,??,,S7
+play,1,0,rosep001,??,,SB2
+play,1,0,rosep001,??,,SB3
+play,1,0,rosep001,??,,W
+play,1,0,mattg001,??,,SB2
+play,1,0,mattg001,??,,63.3-H
+play,1,0,schmm001,??,,53
+play,1,0,diazb001,??,,W
+play,1,0,david101,??,,8/L
+play,1,1,salal001,??,,13
+play,1,1,bonij001,??,,43
+play,1,1,tempg001,??,,K+WP.B-1
+play,1,1,joner002,??,,CS2(26)
+play,2,0,robed102,??,,9
+play,2,0,dejei001,??,,W
+play,2,0,krukm001,??,,24/SH.1-2
+play,2,0,dernb001,??,,43
+play,2,1,joner002,??,,13
+play,2,1,lezcs001,??,,D8
+play,2,1,kennt001,??,,9/L
+play,2,1,lefej001,??,,9
+play,3,0,rosep001,??,,53
+play,3,0,mattg001,??,,8
+play,3,0,schmm001,??,,D8
+play,3,0,diazb001,??,,W
+play,3,0,david101,??,,64(1)/FO
+play,3,1,perkb001,??,,7
+play,3,1,curtj001,??,,13
+play,3,1,salal001,??,,K
+play,4,0,robed102,??,,4/P
+play,4,0,dejei001,??,,63
+play,4,0,krukm001,??,,43
+play,4,1,bonij001,??,,S9
+play,4,1,tempg001,??,,36(1)3/GDP
+play,4,1,joner002,??,,K
+play,5,0,dernb001,??,,D9
+play,5,0,rosep001,??,,43.2-3
+play,5,0,mattg001,??,,K
+play,5,0,schmm001,??,,HR.3-H
+play,5,0,diazb001,??,,K23
+play,5,1,lezcs001,??,,K
+play,5,1,kennt001,??,,7
+play,5,1,lefej001,??,,3/BP
+play,6,0,david101,??,,8
+play,6,0,robed102,??,,63
+play,6,0,dejei001,??,,8/L
+play,6,1,perkb001,??,,NP
+sub,maddg001,"Garry Maddox",0,6,8
+play,6,1,perkb001,??,,NP
+sub,dernb001,"Bob Dernier",0,1,9
+play,6,1,perkb001,??,,6/L
+play,6,1,curtj001,??,,NP
+sub,flant001,"Tim Flannery",1,9,11
+play,6,1,flant001,??,,3/G
+play,6,1,salal001,??,,S7.B-3(E7)
+play,6,1,bonij001,??,,9
+play,7,0,krukm001,??,,NP
+sub,showe001,"Eric Show",1,9,1
+play,7,0,krukm001,??,,S9
+play,7,0,dernb001,??,,E5/SH.1-2;B-1
+play,7,0,rosep001,??,,14/SH.2-3;1-2
+play,7,0,mattg001,??,,W
+play,7,0,schmm001,??,,6(1)3/GDP
+play,7,1,tempg001,??,,7/L
+play,7,1,joner002,??,,3/G
+play,7,1,lezcs001,??,,3/P
+play,8,0,diazb001,??,,K
+play,8,0,maddg001,??,,K
+play,8,0,robed102,??,,K
+play,8,1,kennt001,??,,3/G
+play,8,1,lefej001,??,,K
+play,8,1,perkb001,??,,8
+play,9,0,dejei001,??,,K
+play,9,0,krukm001,??,,K
+play,9,0,dernb001,??,,13
+play,9,1,showe001,??,,NP
+sub,grosg001,"Greg Gross",0,3,7
+play,9,1,showe001,??,,NP
+sub,edwad101,"Dave Edwards",1,9,11
+play,9,1,edwad101,??,,S5
+play,9,1,salal001,??,,FLE9
+play,9,1,salal001,??,,9
+play,9,1,bonij001,??,,64(1)3/GDP
+data,er,krukm001,0
+data,er,curtj001,3
+data,er,showe001,0
