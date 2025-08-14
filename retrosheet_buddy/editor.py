@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .models import EventFile, Game
+from .models import EventFile, Game, Play
 from .parser import parse_event_file
 from .writer import write_event_file
 
@@ -35,9 +35,11 @@ def validate_shortcuts() -> None:
         "q": "Quit",
         "left": "Previous play",
         "right": "Next play",
+        "down": "Next incomplete play",
         "tab": "Switch modes",
         "x": "Undo last action",
         "-": "Clear (pitches in PITCH mode, result in PLAY mode)",
+        "j": "Jump to play",
         "\r": "Enter key",
         "\n": "Enter key",
     }
@@ -77,6 +79,8 @@ def validate_shortcuts() -> None:
         "9": "Catcher interference",
         "0": "Out advancing",
         ";": "No play",
+        "f": "Sacrifice fly",
+        "k": "Sacrifice hit/bunt",
     }
 
     # Detail mode shortcuts (only active in detail mode)
@@ -110,7 +114,7 @@ def validate_shortcuts() -> None:
         "h": "Sacrifice hit/bunt",
         "k": "Strikeout",
         "c": "Fielder's choice",
-        "j": "Double play",
+        "d": "Double play",
         "w": "Grounded into double play",
         "!": "Lined into double play",
         "y": "Triple play",
@@ -418,6 +422,7 @@ class RetrosheetEditor:
             "4": "HR",  # Home run
             "p": "PO",  # Pickoff
             "c": "POCS",  # Pickoff caught stealing
+            "t": "CS",  # Caught stealing
             "b": "BK",  # Balk (runner advances)
             "d": "DI",  # Defensive indifference
             "a": "PB",  # Passed ball
@@ -430,6 +435,8 @@ class RetrosheetEditor:
             "j": "CI",  # Catcher interference
             "0": "OA",  # Out advancing
             ";": "ND",  # No play
+            "f": "SF",  # Sacrifice fly
+            "k": "SH",  # Sacrifice hit/bunt
         }
 
         # Hotkey mappings for hit types in detail mode
@@ -465,7 +472,7 @@ class RetrosheetEditor:
             "h": "SH",  # Sacrifice hit/bunt
             "k": "K",  # Strikeout
             "c": "FC",  # Fielder's choice
-            "j": "DP",  # Double play (generic)
+            "d": "DP",  # Double play (generic)
             "w": "GDP",  # Grounded into double play
             "!": "LDP",  # Lined into double play
             "y": "TP",  # Triple play
@@ -492,6 +499,8 @@ class RetrosheetEditor:
                     self._previous_play()
                 elif key == "right":
                     self._next_play()
+                elif key == "down":
+                    self._next_incomplete_play()
                 elif key == "tab":  # Switch between modes
                     if self.mode == "pitch":
                         self.mode = "play"
@@ -513,6 +522,8 @@ class RetrosheetEditor:
                         self._reset_detail_mode()
                 elif key == "x":  # Undo last action
                     self._undo_last_action()
+                elif key == "j":  # Jump to play
+                    self._jump_to_play()
                 elif key == "-":  # Clear (context-sensitive)
                     if self.mode == "pitch":
                         self._clear_pitches()
@@ -536,6 +547,7 @@ class RetrosheetEditor:
                         "E",
                         "PO",
                         "POCS",
+                        "CS",
                         # Base-running events that need additional detail
                         "OA",
                         "BK",
@@ -543,9 +555,13 @@ class RetrosheetEditor:
                         "PB",
                         "WP",
                         "SB",
+                        # Sacrifice plays that need runner advance detail
+                        "SF",
+                        "SH",
                     ]:
                         # Generic out requires out-type/position details
                         # Hits and errors require hit-type/position details
+                        # Sacrifice plays require fielding detail and then runner advances
                         self._enter_detail_mode(result)
                     else:
                         # All other results should set immediately without entering detail mode
@@ -572,8 +588,8 @@ class RetrosheetEditor:
                                 and self.detail_mode_hit_type is not None
                             ):
                                 self._save_detail_mode_result()
-                            # Allow saving pickoffs when base and details are selected
-                            elif self.detail_mode_result in ["PO", "POCS"]:
+                            # Allow saving pickoffs and caught stealing when details are selected
+                            elif self.detail_mode_result in ["PO", "POCS", "CS"]:
                                 self._save_detail_mode_result()
                             # Allow saving runner-advancement events (BK/DI/PB/WP/SB/OA)
                             elif self.detail_mode_result in [
@@ -835,7 +851,7 @@ class RetrosheetEditor:
                             "Press [ENTER] to save or add more positions\n",
                             style="bold cyan",
                         )
-                elif self.detail_mode_result in ["PO", "POCS"]:
+                elif self.detail_mode_result in ["PO", "POCS", "CS"]:
                     # Pickoff UI
                     if not getattr(self, "detail_pickoff_base", None):
                         if self.detail_mode_result == "PO":
@@ -845,7 +861,12 @@ class RetrosheetEditor:
                             )
                         else:
                             controls_text.append(
-                                "Pickoff-CS base: [2] Second  [3] Third  [H] Home (press 4 or H)\n",
+                                (
+                                    "Caught stealing base: "
+                                    if self.detail_mode_result == "CS"
+                                    else "Pickoff-CS base: "
+                                )
+                                + "[2] Second  [3] Third  [H] Home (press 4 or H)\n",
                                 style="bold blue",
                             )
                     else:
@@ -1114,6 +1135,8 @@ class RetrosheetEditor:
         nav_items = [
             "[Left] Previous play",
             "[Right] Next play",
+            "[Down] Next incomplete",
+            "[J] Jump to play",
             "[Q] Quit",
             "[X] Undo last action",
         ]
@@ -1183,13 +1206,13 @@ class RetrosheetEditor:
             "W": "Walk",
             "HP": "Hit by pitch",
             "E": "Error",
+            "SF": "Sacrifice fly",
+            "SH": "Sacrifice hit/bunt",
             # Out-type wizard items (selected after OUT)
             "K": "Strikeout",
             "FC": "Fielder's choice",
             "DP": "Double play",
             "TP": "Triple play",
-            "SF": "Sac fly",
-            "SH": "Sac bunt",
             "IW": "Intentional walk",
             "CI": "Catcher interference",
             "OA": "Out advancing",
@@ -1202,6 +1225,7 @@ class RetrosheetEditor:
             "UO": "Unassisted out",
             "PO": "Pickoff",
             "POCS": "Pickoff - Caught Stealing",
+            "CS": "Caught Stealing",
             "BK": "Balk",
             "DI": "Defensive indifference",
             "PB": "Passed ball",
@@ -1390,6 +1414,118 @@ class RetrosheetEditor:
             prior_mode = self.mode
             self.current_play_index += 1
             self._auto_set_mode_after_navigation(prior_mode)
+
+    def _jump_to_play(self) -> None:
+        """Show a table of all plays and allow user to jump to a specific play."""
+        if not self.event_file.games:
+            return
+
+        current_game = self.event_file.games[self.current_game_index]
+        if not current_game.plays:
+            return
+
+        # Clear the screen and show the jump-to-play interface
+        self.console.clear()
+
+        # Create table of all plays
+        table = Table(
+            title=f"Jump to Play - {current_game.info.home_team} vs {current_game.info.away_team} ({current_game.info.date})"
+        )
+        table.add_column("#", style="cyan", width=4)
+        table.add_column("Inning", style="magenta", width=6)
+        table.add_column("Team", style="green", width=6)
+        table.add_column("Batter", style="yellow", width=20)
+        table.add_column("Count", style="blue", width=5)
+        table.add_column("Pitches", style="red", width=15)
+        table.add_column("Result", style="white", width=30)
+
+        for i, play in enumerate(current_game.plays):
+            team_name = "Away" if play.team == 0 else "Home"
+            batter_name = self._get_player_name(current_game, play.batter_id)
+
+            # Highlight current play
+            style = "bold reverse" if i == self.current_play_index else None
+
+            table.add_row(
+                str(i + 1),
+                str(play.inning),
+                team_name,
+                batter_name,
+                play.count,
+                play.pitches,
+                play.play_description or "",
+                style=style,
+            )
+
+        # Show the table
+        self.console.print(table)
+        self.console.print(
+            "\nEnter play number (1-{}) or press any other key to cancel: ".format(
+                len(current_game.plays)
+            ),
+            end="",
+        )
+
+        # Get user input for play number
+        try:
+            # Read a line of input (allow multi-digit numbers)
+            user_input = input().strip()
+            if user_input.isdigit():
+                play_number = int(user_input)
+                if 1 <= play_number <= len(current_game.plays):
+                    # Valid play number - jump to it
+                    prior_mode = self.mode
+                    self.current_play_index = play_number - 1
+                    self._auto_set_mode_after_navigation(prior_mode)
+        except (ValueError, KeyboardInterrupt):
+            # Invalid input or user cancelled - do nothing
+            pass
+
+        # Clear the screen and return to normal interface
+        self.console.clear()
+
+    def _next_incomplete_play(self) -> None:
+        """Jump to the next play with incomplete information."""
+        if not self.event_file.games:
+            return
+
+        current_game = self.event_file.games[self.current_game_index]
+        if not current_game.plays:
+            return
+
+        def is_incomplete(play: Play) -> bool:
+            """Check if a play has incomplete information."""
+            # Check if count is ??
+            if play.count == "??" or play.original_count == "??":
+                return True
+            # Check if pitch string is empty
+            if not play.pitches:
+                return True
+            # Check if play description is empty
+            if not play.play_description:
+                return True
+            return False
+
+        # Search for the next incomplete play starting from current index + 1
+        start_index = self.current_play_index + 1
+
+        # First check from current position to end of game
+        for i in range(start_index, len(current_game.plays)):
+            if is_incomplete(current_game.plays[i]):
+                prior_mode = self.mode
+                self.current_play_index = i
+                self._auto_set_mode_after_navigation(prior_mode)
+                return
+
+        # If not found, wrap around and check from beginning to current position
+        for i in range(0, self.current_play_index + 1):
+            if is_incomplete(current_game.plays[i]):
+                prior_mode = self.mode
+                self.current_play_index = i
+                self._auto_set_mode_after_navigation(prior_mode)
+                return
+
+        # If no incomplete plays found, stay at current position (no-op)
 
     def _auto_set_mode_after_navigation(self, prior_mode: str) -> None:
         """Adjust mode after changing plays based on the new play's content.
@@ -1804,13 +1940,16 @@ class RetrosheetEditor:
 
                 # Don't automatically save - let user press ENTER when done selecting fielders
                 # This allows for multi-fielder plays like 6-4-3 double plays
-        elif self.detail_mode_result in ["PO", "POCS"]:
+        elif self.detail_mode_result in ["PO", "POCS", "CS"]:
             # Pickoffs require base selection and either a fielder sequence (for outs) or error (PO only)
             if self.detail_pickoff_base is None:
                 # Select base: PO -> 1/2/3, POCS -> 2/3/4 (4 represents home 'H')
                 if key in ["1", "2", "3"] and self.detail_mode_result == "PO":
                     self.detail_pickoff_base = key
-                elif key in ["2", "3", "4"] and self.detail_mode_result == "POCS":
+                elif key in ["2", "3", "4"] and self.detail_mode_result in [
+                    "POCS",
+                    "CS",
+                ]:
                     self.detail_pickoff_base = "H" if key == "4" else key
             else:
                 # If awaiting error fielder for PO
@@ -1947,12 +2086,12 @@ class RetrosheetEditor:
 
     def _save_detail_mode_result(self) -> None:
         """Save the detailed play result and exit detail mode."""
-        # Handle pickoffs (PO, POCS)
-        if self.detail_mode_result in ["PO", "POCS"]:
+        # Handle pickoffs and caught stealing (PO, POCS, CS)
+        if self.detail_mode_result in ["PO", "POCS", "CS"]:
             # Validate selections
             if not self.detail_pickoff_base:
                 self.console.print(
-                    "Please select the base for the pickoff (1/2/3 for PO; 2/3/H for POCS)",
+                    "Please select the base (1/2/3 for PO; 2/3/H for POCS/CS)",
                     style="yellow",
                 )
                 return
@@ -1972,7 +2111,7 @@ class RetrosheetEditor:
                 else:
                     seq = "".join(str(f) for f in self.detail_pickoff_fielders)
                     desc = f"PO{self.detail_pickoff_base}({seq})"
-            else:  # POCS
+            elif self.detail_mode_result == "POCS":
                 if not self.detail_pickoff_fielders:
                     self.console.print(
                         "Select fielder sequence for POCS (e.g., 1361)", style="yellow"
@@ -1981,6 +2120,15 @@ class RetrosheetEditor:
                 seq = "".join(str(f) for f in self.detail_pickoff_fielders)
                 base_token = self.detail_pickoff_base
                 desc = f"POCS{base_token}({seq})"
+            else:  # CS
+                if not self.detail_pickoff_fielders:
+                    self.console.print(
+                        "Select fielder sequence for CS (e.g., 26)", style="yellow"
+                    )
+                    return
+                seq = "".join(str(f) for f in self.detail_pickoff_fielders)
+                base_token = self.detail_pickoff_base
+                desc = f"CS{base_token}({seq})"
 
             # Apply to current play
             current_game = self.event_file.games[self.current_game_index]
@@ -2094,6 +2242,48 @@ class RetrosheetEditor:
                 self.hit_location_suffix = ""
                 self.hit_location_depth = ""
                 self.hit_location_foul = False
+            else:
+                self.console.print(
+                    "Please complete all detail selections", style="yellow"
+                )
+        elif self.detail_mode_result in ["SF", "SH"]:
+            # Sacrifice plays need hit type and fielding positions
+            if (
+                self.detail_mode_result
+                and self.detail_mode_hit_type
+                and self.detail_mode_fielders
+            ):
+                # Generate the detailed play description
+                play_description = self._generate_detailed_play_description(
+                    self.detail_mode_result,
+                    self.detail_mode_hit_type,
+                    self.detail_mode_fielders[0] if self.detail_mode_fielders else 0,
+                )
+
+                # Set the play result
+                current_game = self.event_file.games[self.current_game_index]
+                current_play = current_game.plays[self.current_play_index]
+
+                # Save state before making changes
+                self._save_state_for_undo()
+
+                # Preserve any previously appended runner-advancement suffix (e.g., +PB.2-3)
+                existing = current_play.play_description or ""
+                suffix_idx = existing.find("+")
+                suffix = existing[suffix_idx:] if suffix_idx != -1 else ""
+                current_play.play_description = play_description + suffix
+                # Append 'X' to pitches for balls put in play on sacrifice plays
+                self._ensure_ball_in_play_marker()
+                current_play.edited = True
+                self._save_current_state()
+
+                # After saving a sacrifice play, automatically enter the
+                # runner advance detail mode wizard
+                self._start_modifier_detail_mode()
+                # Auto-open Advance Runner wizard
+                self.selected_modifier_group = "r"
+                self.advance_runner_active = True
+                self.advance_runner_from_base = None
             else:
                 self.console.print(
                     "Please complete all detail selections", style="yellow"

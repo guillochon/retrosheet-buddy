@@ -58,7 +58,7 @@ def test_out_type_hotkeys(test_event_file, tmp_path):
     # Expanded to include strikeout and choice/DP/TP
     assert "k" in editor.out_type_hotkeys
     assert "c" in editor.out_type_hotkeys
-    assert "j" in editor.out_type_hotkeys
+    assert "d" in editor.out_type_hotkeys
     assert "w" in editor.out_type_hotkeys  # GDP
     assert "!" in editor.out_type_hotkeys  # LDP
     assert "y" in editor.out_type_hotkeys  # TP
@@ -75,7 +75,7 @@ def test_out_type_hotkeys(test_event_file, tmp_path):
     assert editor.out_type_hotkeys["h"] == "SH"
     assert editor.out_type_hotkeys["k"] == "K"
     assert editor.out_type_hotkeys["c"] == "FC"
-    assert editor.out_type_hotkeys["j"] == "DP"
+    assert editor.out_type_hotkeys["d"] == "DP"
     assert editor.out_type_hotkeys["w"] == "GDP"
     assert editor.out_type_hotkeys["!"] == "LDP"
     assert editor.out_type_hotkeys["y"] == "TP"
