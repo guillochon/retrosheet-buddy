@@ -1,8 +1,7 @@
 """Parser for Retrosheet event files."""
 
-import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from .models import DataRecord, EventFile, Game, GameInfo, Play, Player, Substitution
 

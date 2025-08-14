@@ -1,9 +1,8 @@
 """Writer for Retrosheet event files."""
 
 from pathlib import Path
-from typing import List
 
-from .models import EventFile, Game, Play, Player
+from .models import EventFile, Game
 
 
 class RetrosheetWriter:
