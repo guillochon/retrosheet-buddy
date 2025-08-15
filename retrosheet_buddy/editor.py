@@ -232,6 +232,11 @@ class RetrosheetEditor:
         self.advance_runner_from_base = None  # '1','2','3' when selecting
         self.advance_runner_tokens = []  # tokens like '1-2', '2-H', '3-3'
 
+        # Pickoff attempt wizard state
+        self.pickoff_attempt_active = False
+        self.pickoff_attempt_player = None  # 'pitcher' or 'catcher'
+        self.pickoff_attempt_base = None  # '1', '2', or '3'
+
         # Undo functionality
         self.undo_history = (
             []
@@ -293,6 +298,8 @@ class RetrosheetEditor:
                         self._clear_pitches()
                     elif self.mode == "play":
                         self._clear_play_result()
+                elif self.pickoff_attempt_active:
+                    self._handle_pickoff_attempt_input(key)
                 elif self.mode == "pitch" and key in self.pitch_hotkeys:
                     code = self.pitch_hotkeys[key]
                     if code == "X":
@@ -450,7 +457,28 @@ class RetrosheetEditor:
         # Navigation - dynamic text generation
         self._add_navigation_section(controls_text)
 
-        if self.mode == "pitch":
+        # Pickoff attempt wizard
+        if self.pickoff_attempt_active:
+            controls_text.append("Pickoff Attempt Wizard:\n", style="bold magenta")
+            if self.pickoff_attempt_player is None:
+                controls_text.append(
+                    "Who is making the pickoff attempt?\n", style="bold green"
+                )
+                controls_text.append("  [P] Pitcher  [C] Catcher\n", style="bold blue")
+            elif self.pickoff_attempt_base is None:
+                player_name = (
+                    "Pitcher" if self.pickoff_attempt_player == "pitcher" else "Catcher"
+                )
+                controls_text.append(f"Player: {player_name}\n", style="bold green")
+                controls_text.append(
+                    "Which base is being picked off?\n", style="bold green"
+                )
+                controls_text.append(
+                    "  [1] First base  [2] Second base  [3] Third base\n",
+                    style="bold blue",
+                )
+            controls_text.append("\n")
+        elif self.mode == "pitch":
             # Pitch controls - generated from pitch_hotkeys dictionary
             controls_text.append("Pitch Events:\n", style="bold green")
             self._add_hotkey_controls(
@@ -477,10 +505,6 @@ class RetrosheetEditor:
                             f"Selected: {', '.join(self.selected_modifiers)}\n",
                             style="bold cyan",
                         )
-                    controls_text.append(
-                        "Press the highlighted letter to choose a group, [ENTER] to apply and exit.\n",
-                        style="bold blue",
-                    )
                 else:
                     group_name, codes = self.modifier_groups[
                         self.selected_modifier_group
@@ -839,8 +863,8 @@ class RetrosheetEditor:
         # Calculate the height of the generated text
         text_height = self._calculate_text_height(controls_text)
 
-        # Add padding for panel borders and title (typically 3-4 lines)
-        panel_height = text_height + 4
+        # Add padding for panel borders and title
+        panel_height = text_height + 1
 
         return Panel(controls_text, title="Controls", height=panel_height)
 
@@ -849,8 +873,8 @@ class RetrosheetEditor:
         # Convert Text to string and count lines
         text_str = str(text)
         lines = text_str.split("\n")
-        # Count non-empty lines (excluding trailing empty line)
-        height = len([line for line in lines if line.strip()])
+        # Count lines (excluding trailing empty line)
+        height = len(lines)
         return height
 
     def _add_mode_section(self, controls_text: Text) -> None:
@@ -858,8 +882,8 @@ class RetrosheetEditor:
         # Calculate maximum width: minimum of console width and 120 characters
         max_width = min(self.console.width, 120)
 
-        # Account for indentation (2 spaces)
-        available_width = max_width - 2
+        # Account for indentation (2 spaces) and panel borders/padding (4 characters)
+        available_width = max_width - 6
 
         # Mode indicator
         mode_style = (
@@ -890,8 +914,8 @@ class RetrosheetEditor:
         # Calculate maximum width: minimum of console width and 120 characters
         max_width = min(self.console.width, 120)
 
-        # Account for indentation (2 spaces)
-        available_width = max_width - 2
+        # Account for indentation (2 spaces) and panel borders/padding (4 characters)
+        available_width = max_width - 6
 
         controls_text.append("Navigation:\n", style="bold cyan")
 
@@ -1037,11 +1061,11 @@ class RetrosheetEditor:
         self, controls_text: Text, hotkeys: dict, descriptions: dict
     ) -> None:
         """Add hotkey controls to the controls text."""
-        # Calculate maximum width: minimum of console width and 100 characters
+        # Calculate maximum width: minimum of console width and 120 characters
         max_width = min(self.console.width, 120)
 
-        # Account for indentation (2 spaces)
-        available_width = max_width - 2
+        # Account for indentation (2 spaces) and panel borders/padding (4 characters)
+        available_width = max_width - 6
 
         keys = list(hotkeys.keys())
         current_row = []
@@ -1361,6 +1385,12 @@ class RetrosheetEditor:
 
         # Save state before making changes
         self._save_state_for_undo()
+
+        # If a pickoff attempt (PK) is recorded from pitch input,
+        # enter the pickoff attempt wizard to determine pitcher/catcher and base
+        if pitch == "PK":
+            self._enter_pickoff_attempt_wizard()
+            return
 
         # If a wild pitch (V) or passed ball (A) is recorded from pitch input,
         # do NOT add the V/A token to the pitch string. Only append a period to
@@ -2469,7 +2499,9 @@ class RetrosheetEditor:
         self.current_modifier_options_keymap = {}
 
         max_width = min(self.console.width, 120)
-        available_width = max_width - 2  # account for indentation
+        available_width = (
+            max_width - 6
+        )  # account for indentation and panel borders/padding
 
         current_row = []
         current_row_width = 0
@@ -2502,7 +2534,9 @@ class RetrosheetEditor:
     def _add_modifier_group_controls_wrapped(self, controls_text: Text) -> None:
         """Render the modifier group list wrapped across lines within a max width."""
         max_width = min(self.console.width, 120)
-        available_width = max_width - 2
+        available_width = (
+            max_width - 6
+        )  # account for indentation and panel borders/padding
 
         # Build entries like "[B] Ball Types"
         entries = []
@@ -2528,6 +2562,63 @@ class RetrosheetEditor:
 
         if current_row:
             controls_text.append("  " + "  ".join(current_row) + "\n")
+
+    def _enter_pickoff_attempt_wizard(self) -> None:
+        """Enter the pickoff attempt wizard."""
+        self.pickoff_attempt_active = True
+        self.pickoff_attempt_player = None
+        self.pickoff_attempt_base = None
+
+    def _handle_pickoff_attempt_input(self, key: str) -> None:
+        """Handle input for the pickoff attempt wizard."""
+        if self.pickoff_attempt_player is None:
+            # First step: choose pitcher or catcher
+            if key == "p":
+                self.pickoff_attempt_player = "pitcher"
+            elif key == "c":
+                self.pickoff_attempt_player = "catcher"
+        elif self.pickoff_attempt_base is None:
+            # Second step: choose base (1, 2, or 3)
+            if key in ["1", "2", "3"]:
+                self.pickoff_attempt_base = key
+                # Complete the wizard and add to pitches
+                self._complete_pickoff_attempt()
+
+    def _complete_pickoff_attempt(self) -> None:
+        """Complete the pickoff attempt and add the appropriate string to pitches."""
+        current_game = self.event_file.games[self.current_game_index]
+        current_play = current_game.plays[self.current_play_index]
+
+        # Determine the pickoff string based on player and base
+        if self.pickoff_attempt_player == "catcher":
+            pickoff_string = f"+{self.pickoff_attempt_base}"
+        else:  # pitcher
+            pickoff_string = self.pickoff_attempt_base
+
+        # Add to pitches
+        if current_play.pitches:
+            current_play.pitches += pickoff_string
+        else:
+            current_play.pitches = pickoff_string
+
+        # Update count after modifying pitches
+        start_count = self._starting_count_for_play_index(
+            current_game, self.current_play_index
+        )
+        current_play.count = self._calculate_count(current_play.pitches, start_count)
+        current_play.edited = True
+
+        # Reset wizard state
+        self._reset_pickoff_attempt_wizard()
+
+        # Save current state
+        self._save_current_state()
+
+    def _reset_pickoff_attempt_wizard(self) -> None:
+        """Reset the pickoff attempt wizard state."""
+        self.pickoff_attempt_active = False
+        self.pickoff_attempt_player = None
+        self.pickoff_attempt_base = None
 
 
 def run_editor(event_file_path: Path, output_dir: Path) -> None:

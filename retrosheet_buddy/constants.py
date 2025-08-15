@@ -32,8 +32,9 @@ PITCH_SHORTCUTS = {
     "e": "Foul bunt",
     "n": "No pitch",
     "o": "Foul on bunt",
-    "u": "Unknown",
+    "k": "Pick off attempt",
     ".": "Ball in play (append X & switch)",
+    "u": "Unknown",
 }
 
 PLAY_SHORTCUTS = {
@@ -92,7 +93,8 @@ OUT_TYPE_SHORTCUTS = {
     "[": "Unassisted out",
 }
 
-# Hotkey mappings for pitch events (no conflicts)
+# Hotkey mappings for pitch events (no conflicts).
+# This dictionary determines the order that the pitch events are displayed in the controls panel.
 PITCH_HOTKEYS = {
     "b": "B",  # Ball
     "s": "S",  # Swinging strike
@@ -110,12 +112,14 @@ PITCH_HOTKEYS = {
     "e": "E",  # Foul bunt
     "n": "N",  # No pitch
     "o": "O",  # Foul on bunt
-    "u": "U",  # Unknown
+    "k": "PK",  # Pick off attempt
     ".": "X",  # Ball in play: append X and switch to play mode
+    "u": "U",  # Unknown
 }
 
 # Hotkey mappings for play results (consolidated to avoid duplication)
 # Out-related results are selected via the Out Type wizard after choosing OUT
+# This dictionary determines the order that the play results are displayed in the controls panel.
 PLAY_HOTKEYS = {
     "o": "OUT",  # Out
     "1": "S",  # Single
@@ -279,8 +283,9 @@ PITCH_DESCRIPTIONS = {
     "E": "Foul bunt",
     "N": "No pitch",
     "O": "Foul on bunt",
-    "U": "Unknown",
+    "PK": "Pick off attempt",
     "X": "Ball in play",
+    "U": "Unknown",
 }
 
 PLAY_DESCRIPTIONS = {
